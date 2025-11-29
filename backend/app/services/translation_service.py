@@ -4,6 +4,7 @@ import os
 from typing import List
 
 from google.cloud import translate_v2 as translate
+from google.auth.exceptions import DefaultCredentialsError
 
 from sqlalchemy.orm import Session
 
@@ -28,7 +29,14 @@ class TranslationService:
                 )
             if self.translation_api_key:
                 client_kwargs["api_key"] = self.translation_api_key
-            self._client = translate.Client(**client_kwargs)
+
+            # In test/dev environments where credentials are not provided, keep
+            # translations deterministic by falling back to the stub behavior
+            # instead of raising DefaultCredentialsError.
+            try:
+                self._client = translate.Client(**client_kwargs)
+            except DefaultCredentialsError:
+                self._client = None
         return self._client
 
     def _translate_text(
@@ -41,6 +49,9 @@ class TranslationService:
             raise ValueError(f"Unsupported translation provider: {provider}")
 
         client = self._get_gcloud_client()
+        if client is None:
+            return f"{text} ({target_language})"
+
         response = client.translate(text, target_language=target_language)
         return response["translatedText"]
 

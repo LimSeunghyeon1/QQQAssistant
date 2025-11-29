@@ -1,26 +1,25 @@
 # QQQAssistant
 
-## Use-case tests
+## Running the stack (backend API + frontend)
 
-End-to-end API happy paths are covered in `backend/tests/test_use_cases.py`:
+The FastAPI application lives in `backend/app/main.py` and exposes REST endpoints for products, orders, exports, shipments, and purchase orders. The React/Vite frontend in `frontend/` talks to the same API.
 
-- Product import and localization update
-- Order creation with items and status transition history
-- Shipment creation that links to orders and lists shipments
-
-Run them locally:
+Use the helper script to spin up both services with one command (virtualenv + editable backend install + Vite dev server):
 
 ```bash
-cd backend
-python -m venv .venv
-source .venv/bin/activate
-pip install -e .
-pytest
+./start.sh
 ```
 
-### Running the full test suite
+The script starts:
 
-The repository’s unit and integration tests live under `backend/tests`. To execute them end-to-end:
+- Backend: `uvicorn app.main:app --host 0.0.0.0 --port 8000`
+- Frontend: `npm run dev -- --host --port 5173`
+
+Press `Ctrl+C` to stop both processes.
+
+## Running the backend test suite
+
+The repository’s backend unit and integration tests live under `backend/tests`. To execute them end-to-end:
 
 ```bash
 cd backend
@@ -48,15 +47,14 @@ Key variables:
 | Variable | Purpose | Example |
 | --- | --- | --- |
 | `DATABASE_URL` | SQLAlchemy connection string. Defaults to a local SQLite file for quick starts; point this to Postgres/MySQL in production. | `sqlite:///./qqq_assistant.db` or `postgresql+psycopg://user:pass@localhost:5432/qqq_assistant` |
-| `SCRAPER_API_BASE_URL` | Base URL for the external product scraper/collector service. | `https://scraper.example.com` |
-| `SCRAPER_API_TOKEN` | Authentication token or key to call the scraper API. | `scraper-token` |
 | `TRANSLATION_API_KEY` | API key/token for the translation provider used to prefill localized product text. | `sk-xxxx` |
 | `TRANSLATION_PROVIDER` | Translation backend identifier (for example `gcloud`). | `gcloud` |
 | `GOOGLE_APPLICATION_CREDENTIALS` | Path to the Google Cloud service-account JSON file when using the Google translation API. | `/path/to/service-account.json` |
-| `SHIPPING_TRACKING_API_KEY` | Credential for the shipping-tracking API used to refresh shipment statuses. | `st-xxxx` |
 | `SALES_CHANNEL_EXPORT_DIR` | Directory where generated upload/export files will be written. | `./exports` |
 
 FastAPI automatically loads these via `pydantic-settings`; ensure the `.env` file sits at the repository root (same level as `backend/`).
+
+SmartStore CSV exports written by `/api/exports/channel/smartstore` are saved into `SALES_CHANNEL_EXPORT_DIR` in addition to being streamed in the response.
 
 ### Translation provider setup
 
