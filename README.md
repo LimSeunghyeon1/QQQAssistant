@@ -58,6 +58,10 @@ Key variables:
 
 FastAPI automatically loads these via `pydantic-settings`; ensure the `.env` file sits at the repository root (same level as `backend/`).
 
+### Translation provider setup
+
+The `/api/products/{product_id}/translate` endpoint now uses the Google Cloud Translation API when `TRANSLATION_PROVIDER=gcloud` (default). Provide either a `TRANSLATION_API_KEY` or a service-account JSON file pointed to by `GOOGLE_APPLICATION_CREDENTIALS` so the backend can authenticate when issuing translation requests.
+
 
 ## Work log
 
