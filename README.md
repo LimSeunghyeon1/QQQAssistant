@@ -36,6 +36,7 @@ Key variables:
 
 FastAPI automatically loads these via `pydantic-settings`; ensure the `.env` file sits at the repository root (same level as `backend/`).
 
+
 ## Work log
 
 - `pip install -e backend` 실패: 외부 네트워크 프록시로 인해 `setuptools` 다운로드가 차단되어 백엔드 의존성 설치가 완료되지 않음.
