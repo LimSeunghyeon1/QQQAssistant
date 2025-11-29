@@ -1,0 +1,27 @@
+# Environment and secrets
+.env
+.env.*
+
+# Python caches and virtual environments
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.so
+*.egg-info/
+.venv/
+venv/
+ENV/
+
+# IDE/editor
+.vscode/
+.idea/
+
+# Generated exports or build artifacts
+exports/
+dist/
+build/
+node_modules/
+
+# OS files
+.DS_Store

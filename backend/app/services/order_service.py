@@ -40,7 +40,10 @@ class OrderService:
                 reason="initial import",
             )
         )
-        return self.repo.add(order)
+        order = self.repo.add(order)
+        self.repo.session.flush()
+        self.repo.session.refresh(order)
+        return order
 
     def list(self, status: str | None = None) -> List[Order]:
         return list(self.repo.list(status=status))
@@ -54,4 +57,6 @@ class OrderService:
         )
         order.status = new_status
         order.status_history.append(history)
+        self.repo.session.flush()
+        self.repo.session.refresh(order)
         return order

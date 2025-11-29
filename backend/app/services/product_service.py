@@ -34,6 +34,8 @@ class ProductService:
     ) -> ProductLocalizedInfo:
         entry = ProductLocalizedInfo(**localization.model_dump())
         product.localizations.append(entry)
+        self.repo.session.flush()
+        self.repo.session.refresh(product)
         return entry
 
     def list(self) -> List[Product]:

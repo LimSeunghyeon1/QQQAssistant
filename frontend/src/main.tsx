@@ -9,6 +9,8 @@ import ImportProductPage from "./pages/ImportProductPage";
 import OrdersPage from "./pages/OrdersPage";
 import UploadOrdersPage from "./pages/UploadOrdersPage";
 import ShipmentsPage from "./pages/ShipmentsPage";
+import SmartStoreExportPage from "./pages/SmartStoreExportPage";
+import PurchaseOrdersPage from "./pages/PurchaseOrdersPage";
 
 const queryClient = new QueryClient();
 
@@ -20,8 +22,10 @@ function Layout() {
         <nav className="flex gap-4 text-sm text-slate-700">
           <Link to="/products">Products</Link>
           <Link to="/products/import">Import</Link>
+          <Link to="/exports/smartstore">SmartStore Export</Link>
           <Link to="/orders">Orders</Link>
           <Link to="/orders/upload">Upload Orders</Link>
+          <Link to="/purchase-orders">Purchase Orders</Link>
           <Link to="/shipments">Shipments</Link>
         </nav>
       </header>
@@ -29,8 +33,10 @@ function Layout() {
         <Routes>
           <Route path="/products" element={<ProductsPage />} />
           <Route path="/products/import" element={<ImportProductPage />} />
+          <Route path="/exports/smartstore" element={<SmartStoreExportPage />} />
           <Route path="/orders" element={<OrdersPage />} />
           <Route path="/orders/upload" element={<UploadOrdersPage />} />
+          <Route path="/purchase-orders" element={<PurchaseOrdersPage />} />
           <Route path="/shipments" element={<ShipmentsPage />} />
           <Route path="*" element={<ProductsPage />} />
         </Routes>

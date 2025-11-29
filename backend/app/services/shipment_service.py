@@ -26,7 +26,10 @@ class ShipmentService:
             if order:
                 link = OrderShipmentLink(order=order, shipment=shipment)
                 shipment.orders.append(link)
-        return self.shipments.add(shipment)
+        shipment = self.shipments.add(shipment)
+        self.shipments.session.flush()
+        self.shipments.session.refresh(shipment)
+        return shipment
 
     def list(self) -> List[Shipment]:
         return list(self.shipments.list())

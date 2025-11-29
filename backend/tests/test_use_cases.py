@@ -1,16 +1,30 @@
+import asyncio
 from datetime import datetime
+import os
+import sys
 
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from app.database import Base, get_session
+from app.models import domain  # noqa: F401
+from app.models.domain import Product, ProductLocalizedInfo, ProductOption
 from app.main import app
+from app.services.taobao_scraper import TaobaoScraper
+from app.services.translation_service import TranslationService
 
 
 # Shared in-memory database for test cases
-engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
+engine = create_engine(
+    "sqlite:///:memory:",
+    connect_args={"check_same_thread": False},
+    poolclass=StaticPool,
+)
 TestingSessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False)
 
 
@@ -40,21 +54,58 @@ def client():
     app.dependency_overrides.clear()
 
 
-def create_sample_product(client: TestClient):
+@pytest.fixture
+def db_session():
+    session = TestingSessionLocal()
+    try:
+        yield session
+    finally:
+        session.close()
+
+
+def create_sample_product(client: TestClient, index: int = 1):
     payload = {
-        "source_url": "https://example.com/item/1",
+        "source_url": f"https://example.com/item/{index}",
         "source_site": "TAOBAO",
-        "raw_title": "Sample Bag",
-        "raw_price": 12.5,
-        "raw_currency": "CNY",
-        "options": [
-            {"option_key": "color:red/size:m", "raw_name": "Red / M", "raw_price_diff": 0.0}
-        ],
     }
     resp = client.post("/api/products/import", json=payload)
     assert resp.status_code == 200, resp.text
     body = resp.json()
-    return body["id"], body["options"][0]["id"]
+    option_id = body["options"][0]["id"] if body["options"] else None
+    return body["id"], option_id
+
+
+def create_order(
+    client: TestClient,
+    *,
+    product_id: int,
+    product_option_id: int | None,
+    external_id: str = "ORDER-001",
+    status: str = "NEW",
+    quantity: int = 1,
+    unit_price: float = 23000,
+):
+    order_payload = {
+        "external_order_id": external_id,
+        "channel_name": "COUPANG",
+        "customer_name": "홍길동",
+        "customer_phone": "010-1234-5678",
+        "customer_address": "서울시 어딘가",
+        "order_datetime": datetime.utcnow().isoformat(),
+        "status": status,
+        "total_amount_krw": unit_price * quantity,
+        "items": [
+            {
+                "product_id": product_id,
+                "product_option_id": product_option_id,
+                "quantity": quantity,
+                "unit_price_krw": unit_price,
+            }
+        ],
+    }
+    resp = client.post("/api/orders", json=order_payload)
+    assert resp.status_code == 200, resp.text
+    return resp.json()
 
 
 def test_product_import_and_localization(client: TestClient):
@@ -152,3 +203,120 @@ def test_shipment_creation_links_orders(client: TestClient):
     list_resp = client.get("/api/shipments")
     assert list_resp.status_code == 200, list_resp.text
     assert len(list_resp.json()) >= 1
+
+
+def test_translation_endpoint_populates_localization(client: TestClient):
+    product_id, option_id = create_sample_product(client, index=2)
+
+    resp = client.post(
+        f"/api/products/{product_id}/translate",
+        json={"target_locale": "ko-KR", "provider": "gcloud"},
+    )
+    assert resp.status_code == 200, resp.text
+    localized = resp.json()
+    assert localized["locale"] == "ko-KR"
+
+    products_resp = client.get("/api/products")
+    product = next(p for p in products_resp.json() if p["id"] == product_id)
+    assert product["options"][0]["localized_name"].endswith("(ko)")
+    assert product["localizations"][0]["title"].endswith("(ko)")
+
+
+def test_purchase_order_creation_updates_orders(client: TestClient):
+    product_id, option_id = create_sample_product(client, index=3)
+    order = create_order(
+        client,
+        product_id=product_id,
+        product_option_id=option_id,
+        external_id="ORDER-PO-1",
+        status="NEW",
+        quantity=2,
+        unit_price=12000,
+    )
+
+    po_resp = client.post(
+        "/api/purchase-orders", json={"order_ids": [order["id"]]}
+    )
+    assert po_resp.status_code == 200, po_resp.text
+    purchase_orders = po_resp.json()
+    assert len(purchase_orders) == 1
+    purchase_order = purchase_orders[0]
+    assert purchase_order["status"] == "CREATED"
+    assert purchase_order["items"][0]["quantity"] == 2
+
+    orders_resp = client.get("/api/orders")
+    updated_order = next(o for o in orders_resp.json() if o["id"] == order["id"])
+    assert updated_order["status"] == "PENDING_PURCHASE"
+    assert any(
+        h["new_status"] == "PENDING_PURCHASE" for h in updated_order["status_history"]
+    )
+
+
+def test_translation_service_translates_title_and_options(db_session):
+    product = Product(
+        source_url="https://example.com/item/translate",
+        source_site="TAOBAO",
+        raw_title="원본 타이틀",
+        raw_price=120.0,
+        raw_currency="CNY",
+    )
+    option = ProductOption(
+        product=product,
+        option_key="color:red",
+        raw_name="빨강",
+        raw_price_diff=0,
+    )
+    db_session.add_all([product, option])
+    db_session.commit()
+
+    service = TranslationService(db_session)
+    localized = service.translate_product(product.id, target_locale="ko-KR")
+
+    assert localized.locale == "ko-KR"
+    assert localized.title.endswith("(ko)")
+
+    updated_option = db_session.get(ProductOption, option.id)
+    assert updated_option.localized_name.endswith("(ko)")
+
+
+def test_translation_service_raises_for_missing_product(db_session):
+    service = TranslationService(db_session)
+    with pytest.raises(LookupError):
+        service.translate_product(9999)
+
+
+def test_taobao_scraper_returns_default_option():
+    scraper = TaobaoScraper()
+    result = asyncio.get_event_loop().run_until_complete(
+        scraper.fetch_product("https://example.com/item/scraper")
+    )
+
+    assert result.title == "Dummy Taobao Product"
+    assert result.currency == "CNY"
+    assert result.options
+    assert result.options[0].option_key == "default"
+
+
+def test_smartstore_export_returns_csv(client: TestClient):
+    product_id, option_id = create_sample_product(client, index=4)
+
+    localization_payload = {
+        "locale": "ko-KR",
+        "title": "샘플 상품",
+        "description": "간단한 설명",
+        "option_display_name_format": "{color}/{size}",
+    }
+    update_resp = client.put(
+        f"/api/products/{product_id}/localization", json=localization_payload
+    )
+    assert update_resp.status_code == 200, update_resp.text
+
+    export_resp = client.post(
+        "/api/exports/channel/smartstore",
+        json={"product_ids": [product_id], "template_type": "default"},
+    )
+    assert export_resp.status_code == 200, export_resp.text
+    assert export_resp.headers["content-type"].startswith("text/csv")
+    content = export_resp.text
+    assert "상품명,판매가,재고수량" in content.splitlines()[0]
+    assert "샘플 상품" in content
