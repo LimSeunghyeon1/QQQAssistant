@@ -12,12 +12,9 @@ class Settings(BaseSettings):
     database_url: str = "sqlite:///./qqq_assistant.db"
 
     # External integrations
-    scraper_api_base_url: str | None = None
-    scraper_api_token: str | None = None
     translation_api_key: str | None = None
     translation_provider: str = "gcloud"
     google_application_credentials: str | None = None
-    shipping_tracking_api_key: str | None = None
 
     # Generated file locations
     sales_channel_export_dir: str = "./exports"
