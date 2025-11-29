@@ -13,10 +13,20 @@ class ProductOptionCreate(BaseModel):
 
 
 class ProductLocalizedInfoCreate(BaseModel):
-    locale: str = "ko_KR"
+    locale: str = "ko-KR"
     title: str
     description: Optional[str] = None
     option_display_name_format: Optional[str] = None
+
+
+class ProductImportRequest(BaseModel):
+    source_url: str
+    source_site: str = "TAOBAO"
+
+
+class ProductTranslateRequest(BaseModel):
+    target_locale: str = "ko-KR"
+    provider: str = "gcloud"
 
 
 class ProductCreate(BaseModel):
@@ -33,6 +43,7 @@ class ProductOptionRead(BaseModel):
     option_key: str
     raw_name: str
     raw_price_diff: float
+    localized_name: Optional[str] = None
 
     class Config:
         from_attributes = True

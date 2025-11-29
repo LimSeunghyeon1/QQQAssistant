@@ -12,9 +12,28 @@ Run them locally:
 
 ```bash
 cd backend
+python -m venv .venv
+source .venv/bin/activate
 pip install -e .
 pytest
 ```
+
+### Running the full test suite
+
+The repository’s unit and integration tests live under `backend/tests`. To execute them end-to-end:
+
+```bash
+cd backend
+python -m venv .venv            # optional but recommended
+source .venv/bin/activate
+pip install -e .                # installs FastAPI and other dependencies in editable mode
+pytest -q                       # or simply `pytest` for verbose output
+```
+
+Notes:
+
+- Tests default to an in-memory SQLite database, so no external DB is required.
+- If you already have dependencies installed system-wide, you can skip the virtualenv steps.
 
 ## Environment configuration
 
@@ -30,7 +49,10 @@ Key variables:
 | --- | --- | --- |
 | `DATABASE_URL` | SQLAlchemy connection string. Defaults to a local SQLite file for quick starts; point this to Postgres/MySQL in production. | `sqlite:///./qqq_assistant.db` or `postgresql+psycopg://user:pass@localhost:5432/qqq_assistant` |
 | `SCRAPER_API_BASE_URL` | Base URL for the external product scraper/collector service. | `https://scraper.example.com` |
+| `SCRAPER_API_TOKEN` | Authentication token or key to call the scraper API. | `scraper-token` |
 | `TRANSLATION_API_KEY` | API key/token for the translation provider used to prefill localized product text. | `sk-xxxx` |
+| `TRANSLATION_PROVIDER` | Translation backend identifier (for example `gcloud`). | `gcloud` |
+| `GOOGLE_APPLICATION_CREDENTIALS` | Path to the Google Cloud service-account JSON file when using the Google translation API. | `/path/to/service-account.json` |
 | `SHIPPING_TRACKING_API_KEY` | Credential for the shipping-tracking API used to refresh shipment statuses. | `st-xxxx` |
 | `SALES_CHANNEL_EXPORT_DIR` | Directory where generated upload/export files will be written. | `./exports` |
 
