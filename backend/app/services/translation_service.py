@@ -1,28 +1,61 @@
 from __future__ import annotations
 
+import os
 from typing import List
+
+from google.cloud import translate_v2 as translate
 
 from sqlalchemy.orm import Session
 
+from app.config import settings
 from app.models.domain import Product, ProductLocalizedInfo, ProductOption
 
 
 class TranslationService:
     def __init__(self, session: Session) -> None:
         self.session = session
+        self.provider = settings.translation_provider.lower()
+        self.translation_api_key = settings.translation_api_key
+        self.google_credentials = settings.google_application_credentials
+        self._client: translate.Client | None = None
 
-    def _translate_text(self, text: str, target_language: str) -> str:
+    def _get_gcloud_client(self) -> translate.Client:
+        if not self._client:
+            client_kwargs: dict[str, str] = {}
+            if self.google_credentials:
+                os.environ.setdefault(
+                    "GOOGLE_APPLICATION_CREDENTIALS", self.google_credentials
+                )
+            if self.translation_api_key:
+                client_kwargs["api_key"] = self.translation_api_key
+            self._client = translate.Client(**client_kwargs)
+        return self._client
+
+    def _translate_text(
+        self, text: str, target_language: str, provider: str | None = None
+    ) -> str:
         if not text:
             return ""
-        return f"{text} ({target_language})"
+        provider = (provider or self.provider).lower()
+        if provider != "gcloud":
+            raise ValueError(f"Unsupported translation provider: {provider}")
 
-    def _translate_list(self, texts: List[str], target_language: str) -> List[str]:
-        return [self._translate_text(text, target_language) for text in texts]
+        client = self._get_gcloud_client()
+        response = client.translate(text, target_language=target_language)
+        return response["translatedText"]
+
+    def _translate_list(
+        self, texts: List[str], target_language: str, provider: str | None = None
+    ) -> List[str]:
+        return [
+            self._translate_text(text, target_language, provider=provider)
+            for text in texts
+        ]
 
     def translate_product(
         self, product_id: int, target_locale: str = "ko-KR", provider: str = "gcloud"
     ) -> ProductLocalizedInfo:
-        _ = provider
+        provider_to_use = provider or self.provider
         product: Product | None = self.session.get(Product, product_id)
         if not product:
             raise LookupError("Product not found")
@@ -34,10 +67,14 @@ class TranslationService:
         )
 
         target_language = target_locale.split("-")[0]
-        translated_title = self._translate_text(product.raw_title, target_language)
+        translated_title = self._translate_text(
+            product.raw_title, target_language, provider=provider_to_use
+        )
 
         raw_option_names = [opt.raw_name for opt in options]
-        translated_option_names = self._translate_list(raw_option_names, target_language)
+        translated_option_names = self._translate_list(
+            raw_option_names, target_language, provider=provider_to_use
+        )
 
         for opt, translated in zip(options, translated_option_names):
             opt.localized_name = translated
