@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import List, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class ProductOptionCreate(BaseModel):
@@ -35,7 +35,12 @@ class ProductCreate(BaseModel):
     raw_title: str
     raw_price: float
     raw_currency: str
-    options: List[ProductOptionCreate] = []
+    raw_description: Optional[str] = None
+    thumbnail_image_urls: List[str] = Field(default_factory=list)
+    detail_image_urls: List[str] = Field(default_factory=list)
+    clean_image_urls: List[str] = Field(default_factory=list)
+    clean_detail_image_urls: List[str] = Field(default_factory=list)
+    options: List[ProductOptionCreate] = Field(default_factory=list)
 
 
 class ProductOptionRead(BaseModel):

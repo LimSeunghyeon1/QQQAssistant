@@ -7,11 +7,14 @@ from typing import List
 from sqlalchemy.orm import Session
 
 from app.models.domain import Product, ProductLocalizedInfo, ProductOption
+from app.services.pricing import PricingService
+from app.config import settings
 
 
 class SmartStoreExporter:
     def __init__(self, template_config: dict | None = None) -> None:
         self.template_config = template_config or {}
+        self.pricing = PricingService()
 
     def export_products(self, session: Session, product_ids: List[int]) -> io.StringIO:
         if not product_ids:
@@ -44,7 +47,8 @@ class SmartStoreExporter:
                 .first()
             )
             ko_title = localized.title if localized else product.raw_title
-            description = localized.description if localized else ""
+            base_description = localized.description if localized else product.raw_description or ""
+            description = self._append_return_policy(base_description)
 
             options: List[ProductOption] = (
                 session.query(ProductOption)
@@ -53,22 +57,50 @@ class SmartStoreExporter:
             )
 
             if not options:
-                writer.writerow([ko_title, product.raw_price, 0, "", "", description, ""])
+                price = self.pricing.calculate_sale_price(
+                    float(product.raw_price),
+                    shipping_fee=self.template_config.get("shipping_fee"),
+                    margin_rate=self.template_config.get("margin"),
+                    vat_rate=self.template_config.get("vat"),
+                    exchange_rate=self.template_config.get("exchange_rate"),
+                )
+                writer.writerow([ko_title, price, 0, "", "", description, self._primary_image(product)])
             else:
                 for opt in options:
                     option_name = "옵션"
                     option_value = opt.localized_name or opt.raw_name
+                    price = self.pricing.calculate_sale_price(
+                        float(product.raw_price),
+                        float(opt.raw_price_diff or 0),
+                        shipping_fee=self.template_config.get("shipping_fee"),
+                        margin_rate=self.template_config.get("margin"),
+                        vat_rate=self.template_config.get("vat"),
+                        exchange_rate=self.template_config.get("exchange_rate"),
+                    )
                     writer.writerow(
                         [
                             ko_title,
-                            float(product.raw_price) + float(opt.raw_price_diff or 0),
+                            price,
                             0,
                             option_name,
                             option_value,
                             description,
-                            "",
+                            self._primary_image(product),
                         ]
                     )
 
         output.seek(0)
         return output
+
+    def _append_return_policy(self, description: str) -> str:
+        image_url = self.template_config.get("return_policy_image_url") or settings.return_policy_image_url
+        if image_url:
+            return f"{description}<br/><img src=\"{image_url}\" alt=\"return_policy\" />"
+        return description
+
+    def _primary_image(self, product: Product) -> str:
+        if product.clean_image_urls:
+            return product.clean_image_urls[0]
+        if product.thumbnail_image_urls:
+            return product.thumbnail_image_urls[0]
+        return ""

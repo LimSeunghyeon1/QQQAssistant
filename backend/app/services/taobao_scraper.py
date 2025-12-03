@@ -54,6 +54,16 @@ class TaobaoScraper:
             return self._fallback_product(url)
 
         options: List[ScrapedOption] = []
+        for sku in item.get("skus", {}).get("sku", []) or []:
+            option = ScrapedOption(
+                option_key=str(sku.get("properties", "default")),
+                raw_name=sku.get("sku_name", sku.get("properties_name", "Default")),
+                raw_price_diff=float(sku.get("price", 0)) - price if price else None,
+            )
+            options.append(option)
+
+        if not options:
+            options.append(ScrapedOption(option_key="default", raw_name="기본", raw_price_diff=0))
 
         return ScrapedProduct(
             source_url=f"https://item.taobao.com/item.htm?id={num_iid}",
