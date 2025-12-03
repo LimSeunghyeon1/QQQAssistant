@@ -1,7 +1,9 @@
 import asyncio
+import csv
 from datetime import datetime
 import os
 import sys
+import io
 
 import pytest
 from fastapi.testclient import TestClient
@@ -11,11 +13,16 @@ from sqlalchemy.pool import StaticPool
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
+os.environ.setdefault("TAOBAO_APP_KEY", "dummy")
+os.environ.setdefault("TAOBAO_APP_SECRET", "dummy")
+
 from app.database import Base, get_session
 from app.models import domain  # noqa: F401
 from app.models.domain import Product, ProductLocalizedInfo, ProductOption
 from app.main import app
-from app.services.taobao_scraper import TaobaoScraper
+from app.services import PricingInputs, PricingService
+from app.services.exporter_smartstore import SmartStoreExporter
+from app.services.taobao_scraper import ScrapedOption, ScrapedProduct, TaobaoScraper
 from app.services.translation_service import TranslationService
 
 
@@ -26,6 +33,22 @@ engine = create_engine(
     poolclass=StaticPool,
 )
 TestingSessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False)
+
+
+@pytest.fixture(autouse=True)
+def stub_taobao_scraper(monkeypatch):
+    async def fake_fetch_product(self, url: str) -> ScrapedProduct:
+        return ScrapedProduct(
+            source_url=url,
+            source_site="TAOBAO",
+            title="Dummy Taobao Product",
+            price=99.0,
+            currency="CNY",
+            image_urls=["https://example.com/img.jpg"],
+            options=[ScrapedOption(option_key="default", raw_name="기본", raw_price_diff=0)],
+        )
+
+    monkeypatch.setattr(TaobaoScraper, "fetch_product", fake_fetch_product)
 
 
 @pytest.fixture(autouse=True)
@@ -320,3 +343,67 @@ def test_smartstore_export_returns_csv(client: TestClient):
     content = export_resp.text
     assert "상품명,판매가,재고수량" in content.splitlines()[0]
     assert "샘플 상품" in content
+
+
+def test_pricing_service_combinations():
+    service = PricingService()
+    cases = [
+        (PricingInputs(base_price=10, exchange_rate=1300, margin_rate=0.25, shipping_fee=4000), 21250),
+        (
+            PricingInputs(
+                base_price=10,
+                exchange_rate=1300,
+                margin_rate=0.25,
+                shipping_fee=4000,
+                include_vat=True,
+                vat_rate=0.1,
+            ),
+            23375,
+        ),
+        (PricingInputs(base_price=5, exchange_rate=1000), 5000),
+        (
+            PricingInputs(
+                base_price=5,
+                exchange_rate=1000,
+                shipping_fee=2000,
+                include_vat=True,
+            ),
+            7700,
+        ),
+    ]
+
+    for inputs, expected in cases:
+        assert service.calculate_sale_price(inputs) == expected
+
+
+def test_smartstore_export_appends_return_policy_image(db_session):
+    product = Product(
+        source_url="https://example.com/policy",
+        source_site="TAOBAO",
+        raw_title="테스트 상품",
+        raw_price=50,
+        raw_currency="CNY",
+    )
+    db_session.add(product)
+    db_session.flush()
+
+    localization = ProductLocalizedInfo(
+        product_id=product.id,
+        locale="ko-KR",
+        title="테스트 상품",
+        description="상세 설명",
+        option_display_name_format="{color}",
+    )
+    db_session.add(localization)
+    db_session.commit()
+
+    exporter = SmartStoreExporter(
+        template_config={"return_policy_image_url": "https://example.com/return-policy.png"}
+    )
+    output = exporter.export_products(db_session, [product.id])
+    rows = list(csv.reader(io.StringIO(output.getvalue())))
+
+    assert "상세 설명" in rows[1][5]
+    assert rows[1][5].endswith(
+        'return-policy.png" alt="return-policy" /></div>'
+    )

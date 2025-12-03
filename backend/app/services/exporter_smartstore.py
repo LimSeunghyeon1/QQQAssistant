@@ -45,6 +45,10 @@ class SmartStoreExporter:
             )
             ko_title = localized.title if localized else product.raw_title
             description = localized.description if localized else ""
+            policy_image = self.template_config.get("return_policy_image_url")
+            if policy_image:
+                policy_block = f'<div><img src="{policy_image}" alt="return-policy" /></div>'
+                description = f"{description}\n{policy_block}" if description else policy_block
 
             options: List[ProductOption] = (
                 session.query(ProductOption)
