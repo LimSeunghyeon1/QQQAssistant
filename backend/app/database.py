@@ -49,35 +49,22 @@ def apply_schema_upgrades() -> None:
             )
 
         # Patch ``products`` schema for newly added description and image columns
-        product_columns: set[str]
-        if inspector.has_table("products"):
-            try:
-                product_columns = {
-                    column["name"] for column in inspector.get_columns("products")
-                }
-            except Exception:
-                product_columns = set()
-        else:
+        try:
+            product_columns = {
+                column["name"] for column in inspector.get_columns("products")
+            }
+        except Exception:
             product_columns = set()
 
         def add_product_column(column_name: str, ddl: str) -> None:
             if column_name not in product_columns:
                 connection.execute(text(f"ALTER TABLE products ADD COLUMN {ddl}"))
 
-        json_column_type = "JSON" if connection.dialect.name != "sqlite" else "TEXT"
-        empty_array_default = "DEFAULT '[]'"
-
         add_product_column("raw_description", "TEXT")
-        add_product_column(
-            "thumbnail_image_urls", f"{json_column_type} {empty_array_default}"
-        )
-        add_product_column(
-            "detail_image_urls", f"{json_column_type} {empty_array_default}"
-        )
-        add_product_column("clean_image_urls", f"{json_column_type} {empty_array_default}")
-        add_product_column(
-            "clean_detail_image_urls", f"{json_column_type} {empty_array_default}"
-        )
+        add_product_column("thumbnail_image_urls", "JSON DEFAULT '[]'")
+        add_product_column("detail_image_urls", "JSON DEFAULT '[]'")
+        add_product_column("clean_image_urls", "JSON DEFAULT '[]'")
+        add_product_column("clean_detail_image_urls", "JSON DEFAULT '[]'")
 
 
 @contextmanager
