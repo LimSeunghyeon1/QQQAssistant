@@ -310,9 +310,7 @@ def test_translation_service_raises_for_missing_product(db_session):
 
 def test_taobao_scraper_returns_default_option():
     scraper = TaobaoScraper()
-    result = asyncio.get_event_loop().run_until_complete(
-        scraper.fetch_product("https://example.com/item/scraper")
-    )
+    result = asyncio.run(scraper.fetch_product("https://example.com/item/scraper"))
 
     assert result.title == "Dummy Taobao Product"
     assert result.currency == "CNY"
