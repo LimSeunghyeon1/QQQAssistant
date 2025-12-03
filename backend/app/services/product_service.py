@@ -18,6 +18,11 @@ class ProductService:
             raw_title=payload.raw_title,
             raw_price=payload.raw_price,
             raw_currency=payload.raw_currency,
+            raw_description=payload.raw_description,
+            thumbnail_image_urls=payload.thumbnail_image_urls,
+            detail_image_urls=payload.detail_image_urls,
+            clean_image_urls=payload.clean_image_urls,
+            clean_detail_image_urls=payload.clean_detail_image_urls,
         )
         for option in payload.options:
             product.options.append(
