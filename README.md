@@ -18,6 +18,23 @@ pip install -e .
 pytest
 ```
 
+### Quick start script
+
+Use `start.sh` to boot the FastAPI app and hit the main flows with real HTTP calls (no tests involved). From the repository root:
+
+```bash
+./start.sh serve  # Just start the API server on 127.0.0.1:8000
+./start.sh uc1    # Import a product then save localization data
+./start.sh uc2    # Create an order and append status history
+./start.sh uc3    # Create a shipment linked to an order
+./start.sh        # Run all three use cases sequentially
+```
+
+Notes:
+
+- The script will auto-activate `backend/.venv` when present; install dependencies first with `pip install -e backend`.
+- Override `HOST`/`PORT` env vars if you want to bind to a different address.
+
 ### Running the full test suite
 
 The repository’s unit and integration tests live under `backend/tests`. To execute them end-to-end:
