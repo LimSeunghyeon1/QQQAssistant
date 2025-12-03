@@ -18,10 +18,9 @@ Use the helper script to spin up both services with one command (virtualenv + ed
 ./start.sh
 ```
 
-The script starts:
+### Quick start script
 
-- Backend: `uvicorn app.main:app --host 0.0.0.0 --port 8000`
-- Frontend: `npm run dev -- --host --port 5173`
+Use `start.sh` to boot the FastAPI app and hit the main flows with real HTTP calls (no tests involved). From the repository root:
 
 Once both processes are running, open the frontend at `http://localhost:5173`. It proxies API calls to the backend at `http://localhost:8000`.
 

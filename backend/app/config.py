@@ -19,5 +19,14 @@ class Settings(BaseSettings):
     # Generated file locations
     sales_channel_export_dir: str = "./exports"
 
+    # Pricing
+    exchange_rate: float = 185.2
+    default_margin: float = 15.0
+    vat_rate: float = 10.0
+    default_delivery: float = 3500.0
+
+    # Content helpers
+    return_policy_image_url: str | None = None
+
 
 settings = Settings()

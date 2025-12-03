@@ -128,7 +128,7 @@ class TaobaoClient:
         method = "taobao.item.get"  # Replace with the exact method you need.
         biz_params = {
             "num_iid": num_iid,
-            "fields": "num_iid,title,price,pic_url,sku,volume",
+            "fields": "num_iid,title,price,pic_url,item_imgs,skus,desc,desc_module",
         }
         return self.execute(method, biz_params=biz_params)
 

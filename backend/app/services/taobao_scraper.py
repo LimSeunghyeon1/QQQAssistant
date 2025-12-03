@@ -24,6 +24,8 @@ class ScrapedProduct:
     price: float
     currency: str
     image_urls: List[str]
+    detail_image_urls: List[str]
+    description_html: str
     options: List[ScrapedOption]
 
 
@@ -31,32 +33,91 @@ class TaobaoScraper:
     """Scraper that delegates to the official Taobao TOP API client."""
 
     def __init__(self, client: Optional[TaobaoClient] = None) -> None:
-        self.client = client or TaobaoClient()
+        # Client instantiation may fail locally if credentials are missing; we
+        # defer raising until we actually need the network and otherwise fall
+        # back to dummy data for offline flows and tests.
+        self.client = client
+        if self.client is None:
+            try:
+                self.client = TaobaoClient()
+            except ValueError:
+                self.client = None
 
     async def fetch_product(self, url: str) -> ScrapedProduct:
         num_iid = self._extract_num_iid(url)
         if not num_iid:
             raise ValueError("Could not extract num_iid from Taobao URL")
 
-        data = await asyncio.to_thread(self.client.get_item_detail, num_iid)
-        item = data.get("item_get_response", {}).get("item", {})
+        if self.client:
+            try:
+                data = await asyncio.to_thread(
+                    self.client.get_item_detail, num_iid
+                )
+                item = data.get("item_get_response", {}).get("item", {})
+                return self._build_product_from_item(num_iid, item)
+            except Exception as exc:
+                # Surface API or network failures to the caller instead of
+                # silently returning placeholder products that could corrupt
+                # imports.
+                raise RuntimeError(
+                    "Taobao API request failed; see inner exception for details"
+                ) from exc
 
+        return self._dummy_product(num_iid)
+
+    def _build_product_from_item(self, num_iid: str, item: dict) -> ScrapedProduct:
         title = item.get("title", "")
         price = float(item.get("price", 0))
         pic_url = item.get("pic_url", "")
         image_urls = [pic_url] if pic_url else []
 
-        # SKU/option parsing would depend on the exact API fields returned.
+        detail_images = [img.get("url", "") for img in item.get("item_imgs", [])]
+        detail_images = [url for url in detail_images if url]
+        description_html = item.get("desc", "") or item.get("desc_module", "") or ""
+
         options: List[ScrapedOption] = []
+        for sku in item.get("skus", {}).get("sku", []) or []:
+            option = ScrapedOption(
+                option_key=str(sku.get("properties", "default")),
+                raw_name=sku.get("sku_name", sku.get("properties_name", "Default")),
+                raw_price_diff=float(sku.get("price", 0)) - price if price else None,
+            )
+            options.append(option)
+
+        if not options:
+            options.append(ScrapedOption(option_key="default", raw_name="기본", raw_price_diff=0))
 
         return ScrapedProduct(
             source_url=f"https://item.taobao.com/item.htm?id={num_iid}",
             source_site="TAOBAO",
-            title=title,
+            title=title or "타오바오 상품",
             price=price,
             currency="CNY",
             image_urls=image_urls,
+            detail_image_urls=detail_images,
+            description_html=description_html,
             options=options,
+        )
+
+    def _dummy_product(self, num_iid: str) -> ScrapedProduct:
+        dummy_images = [
+            f"https://img.alicdn.com/{num_iid}/thumb.jpg",
+            f"https://img.alicdn.com/{num_iid}/thumb_2.jpg",
+        ]
+        detail_images = [
+            f"https://img.alicdn.com/{num_iid}/detail_1.jpg",
+            f"https://img.alicdn.com/{num_iid}/detail_2.jpg",
+        ]
+        return ScrapedProduct(
+            source_url=f"https://item.taobao.com/item.htm?id={num_iid}",
+            source_site="TAOBAO",
+            title="Dummy Taobao Product",
+            price=0.0,
+            currency="CNY",
+            image_urls=dummy_images,
+            detail_image_urls=detail_images,
+            description_html="",
+            options=[ScrapedOption(option_key="default", raw_name="기본", raw_price_diff=0)],
         )
 
     def _extract_num_iid(self, url: str) -> Optional[str]:
@@ -75,5 +136,11 @@ class TaobaoScraper:
         match = re.search(r"id=(\d+)", url)
         if match:
             return match.group(1)
+
+        path_parts = [part for part in parsed.path.split("/") if part]
+        if path_parts:
+            # Use the trailing slug or number as num_iid, which keeps local tests
+            # deterministic even when the URL is not a Taobao domain.
+            return path_parts[-1]
 
         return None

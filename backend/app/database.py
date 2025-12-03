@@ -32,6 +32,7 @@ def apply_schema_upgrades() -> None:
     with engine.begin() as connection:
         inspector = inspect(connection)
 
+        # Patch ``product_options`` schema
         try:
             product_option_columns = {
                 column["name"] for column in inspector.get_columns("product_options")
@@ -46,6 +47,24 @@ def apply_schema_upgrades() -> None:
                     "ALTER TABLE product_options ADD COLUMN localized_name VARCHAR(255)"
                 )
             )
+
+        # Patch ``products`` schema for newly added description and image columns
+        try:
+            product_columns = {
+                column["name"] for column in inspector.get_columns("products")
+            }
+        except Exception:
+            product_columns = set()
+
+        def add_product_column(column_name: str, ddl: str) -> None:
+            if column_name not in product_columns:
+                connection.execute(text(f"ALTER TABLE products ADD COLUMN {ddl}"))
+
+        add_product_column("raw_description", "TEXT")
+        add_product_column("thumbnail_image_urls", "JSON DEFAULT '[]'")
+        add_product_column("detail_image_urls", "JSON DEFAULT '[]'")
+        add_product_column("clean_image_urls", "JSON DEFAULT '[]'")
+        add_product_column("clean_detail_image_urls", "JSON DEFAULT '[]'")
 
 
 @contextmanager

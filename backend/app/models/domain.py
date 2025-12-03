@@ -27,6 +27,11 @@ class Product(Base):
     raw_title: Mapped[str] = mapped_column(Text)
     raw_price: Mapped[float] = mapped_column(Numeric(12, 2))
     raw_currency: Mapped[str] = mapped_column(String(10))
+    raw_description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    thumbnail_image_urls: Mapped[list[str]] = mapped_column(JSON, default=list)
+    detail_image_urls: Mapped[list[str]] = mapped_column(JSON, default=list)
+    clean_image_urls: Mapped[list[str]] = mapped_column(JSON, default=list)
+    clean_detail_image_urls: Mapped[list[str]] = mapped_column(JSON, default=list)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
