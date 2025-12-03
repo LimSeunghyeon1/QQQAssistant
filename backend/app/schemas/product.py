@@ -72,11 +72,10 @@ class ProductRead(BaseModel):
     raw_title: str
     raw_price: float
     raw_currency: str
-    raw_description: Optional[str]
-    thumbnail_image_urls: List[str]
-    detail_image_urls: List[str]
-    clean_image_urls: List[str]
-    clean_detail_image_urls: List[str]
+    image_urls: list[str]
+    detail_image_urls: list[str]
+    clean_image_urls: list[str]
+    clean_detail_image_urls: list[str]
     created_at: datetime
     options: List[ProductOptionRead] = []
     localizations: List[ProductLocalizedInfoRead] = []
