@@ -4,6 +4,14 @@
 
 The FastAPI application lives in `backend/app/main.py` and exposes REST endpoints for products, orders, exports, shipments, and purchase orders. The React/Vite frontend in `frontend/` talks to the same API.
 
+### Prerequisites before starting the dev servers
+
+1) Install system requirements (Python 3.10+, Node.js/npm). `start.sh` will create a virtualenv and install Python/Node dependencies, but the runtimes themselves must exist locally.
+2) Create an environment file by copying the example: `cp .env.example .env`.
+3) Fill in Taobao credentials (app key/secret and a valid **session key**) in `.env` so product lookups work. Session keys are issued from the Taobao Open Platform after authorizing your app; paste the active value into `TAOBAO_SESSION_KEY`.
+
+### Starting the stack
+
 Use the helper script to spin up both services with one command (virtualenv + editable backend install + Vite dev server):
 
 ```bash
@@ -14,20 +22,17 @@ Use the helper script to spin up both services with one command (virtualenv + ed
 
 Use `start.sh` to boot the FastAPI app and hit the main flows with real HTTP calls (no tests involved). From the repository root:
 
-```bash
-./start.sh serve  # Just start the API server on 127.0.0.1:8000
-./start.sh uc1    # Import a product then save localization data
-./start.sh uc2    # Create an order and append status history
-./start.sh uc3    # Create a shipment linked to an order
-./start.sh        # Run all three use cases sequentially
-```
+Once both processes are running, open the frontend at `http://localhost:5173`. It proxies API calls to the backend at `http://localhost:8000`.
 
-Notes:
+Press `Ctrl+C` to stop both processes.
 
-- The script will auto-activate `backend/.venv` when present; install dependencies first with `pip install -e backend`.
-- Override `HOST`/`PORT` env vars if you want to bind to a different address.
+### Basic workflow (Taobao → SmartStore)
 
-### Running the full test suite
+1) Run `./start.sh` and open `http://localhost:5173` in your browser.
+2) Paste a Taobao product URL into the input field on the landing page.
+3) Trigger product retrieval to fetch details from Taobao using the credentials in `.env`.
+4) Review/edit the returned product information.
+5) Download the SmartStore-ready CSV file (exported via `/api/exports/channel/smartstore` and saved under `SALES_CHANNEL_EXPORT_DIR`).
 
 ## Running the backend test suite
 
@@ -62,6 +67,9 @@ Key variables:
 | `TRANSLATION_API_KEY` | API key/token for the translation provider used to prefill localized product text. | `sk-xxxx` |
 | `TRANSLATION_PROVIDER` | Translation backend identifier (for example `gcloud`). | `gcloud` |
 | `GOOGLE_APPLICATION_CREDENTIALS` | Path to the Google Cloud service-account JSON file when using the Google translation API. | `/path/to/service-account.json` |
+| `TAOBAO_APP_KEY` / `TAOBAO_APP_SECRET` | Application credentials from the Taobao Open Platform. | `your-app-key` / `your-app-secret` |
+| `TAOBAO_SESSION_KEY` | Active Taobao session key (grant token). Required for fetching products by URL. | `your-session-key` |
+| `TAOBAO_API_URL` | Taobao Open Platform API host. | `https://gw.api.taobao.com/router/rest` |
 | `SALES_CHANNEL_EXPORT_DIR` | Directory where generated upload/export files will be written. | `./exports` |
 
 FastAPI automatically loads these via `pydantic-settings`; ensure the `.env` file sits at the repository root (same level as `backend/`).
