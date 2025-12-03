@@ -38,7 +38,10 @@ class TaobaoClient:
         )
 
         if not self.app_key or not self.app_secret:
-            raise ValueError("TAOBAO_APP_KEY / TAOBAO_APP_SECRET must be set")
+            print(
+                "[TaobaoClient] WARNING: TAOBAO_APP_KEY / TAOBAO_APP_SECRET are empty; "
+                "real API calls will fail without credentials."
+            )
 
         if not self.session_key:
             # Many product/order APIs require a session token.
