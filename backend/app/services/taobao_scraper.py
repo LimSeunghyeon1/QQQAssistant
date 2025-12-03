@@ -55,10 +55,13 @@ class TaobaoScraper:
                 )
                 item = data.get("item_get_response", {}).get("item", {})
                 return self._build_product_from_item(num_iid, item)
-            except Exception:
-                # Fallback to dummy data if the API call fails or credentials
-                # are not configured for local development.
-                pass
+            except Exception as exc:
+                # Surface API or network failures to the caller instead of
+                # silently returning placeholder products that could corrupt
+                # imports.
+                raise RuntimeError(
+                    "Taobao API request failed; see inner exception for details"
+                ) from exc
 
         return self._dummy_product(num_iid)
 
