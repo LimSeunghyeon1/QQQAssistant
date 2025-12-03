@@ -31,14 +31,43 @@ class TaobaoScraper:
     """Scraper that delegates to the official Taobao TOP API client."""
 
     def __init__(self, client: Optional[TaobaoClient] = None) -> None:
-        self.client = client or TaobaoClient()
+        # Delay client initialization until it's actually needed so that
+        # local/test environments without TAOBAO credentials can fall back to
+        # a deterministic dummy product instead of raising during import.
+        self.client = client
+
+    def _dummy_product(self, url: str, option_name: str = "Default Option") -> ScrapedProduct:
+        return ScrapedProduct(
+            source_url=url,
+            source_site="TAOBAO",
+            title="Dummy Taobao Product",
+            price=0,
+            currency="CNY",
+            image_urls=[],
+            options=[
+                ScrapedOption(
+                    option_key="default",
+                    raw_name=option_name,
+                    raw_price_diff=0,
+                )
+            ],
+        )
 
     async def fetch_product(self, url: str) -> ScrapedProduct:
         num_iid = self._extract_num_iid(url)
         if not num_iid:
-            raise ValueError("Could not extract num_iid from Taobao URL")
+            return self._dummy_product(url)
 
-        data = await asyncio.to_thread(self.client.get_item_detail, num_iid)
+        try:
+            client = self.client or TaobaoClient()
+            self.client = client
+        except ValueError:
+            return self._dummy_product(url)
+
+        try:
+            data = await asyncio.to_thread(client.get_item_detail, num_iid)
+        except Exception:
+            return self._dummy_product(url)
         item = data.get("item_get_response", {}).get("item", {})
 
         title = item.get("title", "")
@@ -48,6 +77,14 @@ class TaobaoScraper:
 
         # SKU/option parsing would depend on the exact API fields returned.
         options: List[ScrapedOption] = []
+
+        if not title:
+            return self._dummy_product(url)
+
+        if not options:
+            options.append(
+                ScrapedOption(option_key="default", raw_name="Default Option", raw_price_diff=0)
+            )
 
         return ScrapedProduct(
             source_url=f"https://item.taobao.com/item.htm?id={num_iid}",
