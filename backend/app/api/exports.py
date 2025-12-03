@@ -19,7 +19,7 @@ router = APIRouter(prefix="/api/exports", tags=["exports"])
 def export_smartstore(
     payload: SmartStoreExportRequest, session: Session = Depends(get_session)
 ):
-    exporter = SmartStoreExporter()
+    exporter = SmartStoreExporter(template_config=payload.template_config)
     try:
         csv_buf = exporter.export_products(session, payload.product_ids)
     except ValueError as exc:
