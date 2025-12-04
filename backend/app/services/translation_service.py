@@ -81,6 +81,11 @@ class TranslationService:
         translated_title = self._translate_text(
             product.raw_title, target_language, provider=provider_to_use
         )
+        translated_description = self._translate_text(
+            product.raw_description or "",
+            target_language,
+            provider=provider_to_use,
+        )
 
         raw_option_names = [opt.raw_name for opt in options]
         translated_option_names = self._translate_list(
@@ -103,7 +108,7 @@ class TranslationService:
             localized = ProductLocalizedInfo(product_id=product_id, locale=target_locale)
 
         localized.title = translated_title
-        localized.description = localized.description or ""
+        localized.description = translated_description or localized.description or ""
         localized.option_display_name_format = localized.option_display_name_format or "{option}"
 
         self.session.add(localized)

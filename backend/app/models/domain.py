@@ -25,6 +25,7 @@ class Product(Base):
     source_url: Mapped[str] = mapped_column(Text)
     source_site: Mapped[str] = mapped_column(String(50))
     raw_title: Mapped[str] = mapped_column(Text)
+    raw_description: Mapped[str | None] = mapped_column(Text, nullable=True)
     raw_price: Mapped[float] = mapped_column(Numeric(12, 2))
     raw_currency: Mapped[str] = mapped_column(String(10))
     exchange_rate: Mapped[float | None] = mapped_column(Numeric(12, 4), nullable=True)
