@@ -84,7 +84,7 @@ Key variables:
 | `GOOGLE_APPLICATION_CREDENTIALS` | Path to the Google Cloud service-account JSON file when using the Google translation API. | `/path/to/service-account.json` |
 | `TAOBAO_APP_KEY` / `TAOBAO_APP_SECRET` | Application credentials from the Taobao Open Platform. | `your-app-key` / `your-app-secret` |
 | `TAOBAO_SESSION_KEY` | Active Taobao session key (grant token). Required for fetching products by URL. | `your-session-key` |
-| `TAOBAO_API_URL` | Taobao Open Platform API host. | `https://gw.api.taobao.com/router/rest` |
+| `TAOBAO_CALLBACK_URL` | Taobao Open Platform callback URL used by the IOP client. | `https://api.taobao.com/router/callback` |
 | `SALES_CHANNEL_EXPORT_DIR` | Directory where generated upload/export files will be written. | `./exports` |
 | `EXCHANGE_RATE` / `DEFAULT_MARGIN` / `VAT_RATE` / `DEFAULT_DELIVERY` | Optional pricing defaults when a product does not define overrides. Leave unset to use the baked-in defaults from `app.config.Settings`. | `185.2` / `15` / `10` / `3500` |
 | `RETURN_POLICY_IMAGE_URL` | Optional absolute/public URL appended to exported descriptions as an `<img>` block (e.g., return/AS policy banner). If unset, no image is added. | `https://example.com/return-policy.png` |
