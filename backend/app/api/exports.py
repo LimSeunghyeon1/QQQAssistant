@@ -23,7 +23,11 @@ def _smartstore_exporter_factory(
     template_config = dict(payload.template_config)
     if payload.locale:
         template_config.setdefault("locale", payload.locale)
-    return SmartStoreExporter(template_config=template_config, locale=payload.locale)
+    return SmartStoreExporter(
+        template_config=template_config,
+        locale=payload.locale,
+        template_type=payload.template_type,
+    )
 
 
 EXPORTER_FACTORIES: dict[str, Callable[[SmartStoreExportRequest], SmartStoreExporter]] = {

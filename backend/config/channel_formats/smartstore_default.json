@@ -1,0 +1,12 @@
+{
+  "locale": "ko-KR",
+  "columns": [
+    {"header": "상품명", "field": "title", "required": true},
+    {"header": "판매가", "field": "price", "required": true},
+    {"header": "재고수량", "field": "stock", "required": true},
+    {"header": "옵션명", "field": "option_name", "required": false},
+    {"header": "옵션값", "field": "option_value", "required": false},
+    {"header": "상세설명", "field": "description", "required": false},
+    {"header": "대표이미지URL", "field": "primary_image", "required": true}
+  ]
+}
