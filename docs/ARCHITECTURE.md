@@ -9,16 +9,16 @@
 ## Backend Architecture
 ### Application startup & persistence
 - The ASGI app is created by `create_app()` and includes routers for products, orders, shipments, exports, and purchase orders before exposing `/health` for monitoring.
-- Database sessions are provided per-request and committed/rolled back centrally; `apply_schema_upgrades()` patches existing SQLite tables with new columns (e.g., localized option names, cleaned image URLs) after `Base.metadata.create_all` runs.
+- Database sessions are provided per-request and committed/rolled back centrally; `apply_schema_upgrades()` patches existing SQLite tables with new columns (e.g., localized option names) after `Base.metadata.create_all` runs.
 
 ### Domain model highlights
-- **Product** entities store scraped source metadata, raw and cleaned image URLs, and own multiple **ProductOption** rows that can carry a localized name for exports.
+- **Product** entities store scraped source metadata, raw image URLs, and own multiple **ProductOption** rows that can carry a localized name for exports.
 - **ProductLocalizedInfo** captures translated titles/descriptions per locale.
 - **Order**, **OrderItem**, **Shipment**, and **OrderShipmentLink** track downstream fulfillment, while **OrderStatusHistory** logs changes.
 - **PurchaseOrder**, **PurchaseOrderItem**, **PurchaseOrderSourceLink**, and **PurchaseOrderStatusHistory** aggregate customer orders into supplier-facing purchase batches.
 
 ### Core services & flows
-- **Product import**: `ProductImportService` routes `/api/products/import` requests to a Taobao scraper, deduplicates by source URL, masks text in product images through `ImageCleanupService`, and persists products/options with cleaned image variants.
+- **Product import**: `ProductImportService` routes `/api/products/import` requests to a Taobao scraper, deduplicates by source URL, and persists products/options with their original image URLs.
 - **Translation**: `/api/products/{product_id}/translate` calls `TranslationService`, which prefers the Google Cloud Translation API (configurable via `TRANSLATION_PROVIDER`/credentials) and falls back to deterministic stub output when credentials are absent, while saving localized option names and info records.
 - **Exports**: `SmartStoreExporter` powers `/api/exports/channel/smartstore`, converting selected products to CSV with pricing adjustments (exchange rate, margin, VAT, shipping) and appending a configurable return-policy image block; files are streamed to the client and also written to `SALES_CHANNEL_EXPORT_DIR`.
 - **Orders & shipments**: `/api/orders` supports create/list/status updates; `/api/shipments` links carrier tracking to orders through repository-backed services.

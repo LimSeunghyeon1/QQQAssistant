@@ -42,8 +42,6 @@ class ProductCreate(BaseModel):
     raw_description: Optional[str] = None
     thumbnail_image_urls: List[str] = Field(default_factory=list)
     detail_image_urls: List[str] = Field(default_factory=list)
-    clean_image_urls: List[str] = Field(default_factory=list)
-    clean_detail_image_urls: List[str] = Field(default_factory=list)
     options: List[ProductOptionCreate] = Field(default_factory=list)
 
 
@@ -89,8 +87,6 @@ class ProductRead(BaseModel):
     shipping_fee: Optional[float] = None
     image_urls: list[str]
     detail_image_urls: list[str]
-    clean_image_urls: list[str]
-    clean_detail_image_urls: list[str]
     created_at: datetime
     options: List[ProductOptionRead] = []
     localizations: List[ProductLocalizedInfoRead] = []

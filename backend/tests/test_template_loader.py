@@ -2,6 +2,10 @@ import csv
 import io
 import json
 import os
+import csv
+import io
+import json
+import os
 import sys
 from pathlib import Path
 
@@ -51,7 +55,7 @@ def _create_product(db_session) -> Product:
         raw_title="템플릿 상품",
         raw_price=10,
         raw_currency="CNY",
-        clean_image_urls=["https://example.com/img.jpg"],
+        image_urls=["https://example.com/img.jpg"],
     )
     db_session.add(product)
     db_session.flush()
