@@ -160,3 +160,21 @@ classDiagram
     OrderItem "*" --> "1" ProductOption
     Shipment "*" -- "*" Order : through links
 ```
+
+### Main Request Flow (Product Import)
+```mermaid
+sequenceDiagram
+    participant Client
+    participant Router as FastAPI Router
+    participant Service as ProductImportService
+    participant DB as SQLAlchemy Session
+    participant Source as Overseas Site
+
+    Client->>Router: POST /api/products/import
+    Router->>Service: import_product(payload)
+    Service->>Source: fetch_product(source_url)
+    Service->>DB: insert Product + ProductOption rows
+    DB-->>Service: new identifiers
+    Service-->>Router: Product model
+    Router-->>Client: JSON response
+```

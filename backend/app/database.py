@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from contextlib import contextmanager
 from typing import Iterator
 
 from sqlalchemy import create_engine, inspect, text
@@ -69,8 +68,17 @@ def apply_schema_upgrades() -> None:
         add_product_column("clean_detail_image_urls", "JSON DEFAULT '[]'")
 
 
-@contextmanager
 def get_session() -> Iterator[Session]:
+    """Provide a database session for FastAPI dependencies.
+
+    This generator is designed for FastAPI's dependency system, which expects a
+    ``yield``-based lifecycle. Using ``@contextmanager`` here would return a
+    context manager object instead of the actual ``Session`` instance, causing
+    request handlers to receive the wrong type. The explicit ``yield`` keeps the
+    session lifecycle readable while ensuring commits and rollbacks happen in a
+    single place.
+    """
+
     session = SessionLocal()
     try:
         yield session
