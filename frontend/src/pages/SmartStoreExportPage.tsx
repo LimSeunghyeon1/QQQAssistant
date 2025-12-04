@@ -1,5 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useChannel } from "../ChannelContext";
+import ChannelSelector from "../components/ChannelSelector";
 
 type Product = {
   id: number;
@@ -28,10 +30,22 @@ async function fetchProducts() {
 export default function SmartStoreExportPage() {
   const queryClient = useQueryClient();
   const { data, isLoading, error } = useQuery({ queryKey: ["products"], queryFn: fetchProducts });
+  const { channel, statusMessage } = useChannel();
   const [selected, setSelected] = useState<number[]>([]);
   const [status, setStatus] = useState<string>("");
   const [messages, setMessages] = useState<Record<number, string>>({});
   const [formState, setFormState] = useState<Record<number, PricingForm>>({});
+
+  useEffect(() => {
+    setStatus(`현재 채널: ${channel.label} (${channel.supported ? "지원됨" : "지원 예정"})`);
+  }, [channel]);
+
+  const endpointMap = useMemo(
+    () => ({
+      smartstore: "/api/exports/channel/smartstore",
+    }),
+    []
+  );
 
   useEffect(() => {
     if (!data) return;
@@ -123,38 +137,50 @@ export default function SmartStoreExportPage() {
 
   const handleExport = async () => {
     if (selected.length === 0) {
-      setStatus("Select at least one product");
+      setStatus(`현재 채널 ${channel.label}: 상품을 선택해주세요.`);
       return;
     }
-    setStatus("Preparing CSV...");
-    const res = await fetch("/api/exports/channel/smartstore", {
+
+    if (!channel.supported || !endpointMap[channel.value as keyof typeof endpointMap]) {
+      alert("아직 지원하지 않는 채널");
+      setStatus(`현재 채널 ${channel.label}는 아직 지원되지 않습니다.`);
+      return;
+    }
+
+    const endpoint = endpointMap[channel.value as keyof typeof endpointMap];
+    setStatus(`${channel.label} 채널로 CSV 준비 중...`);
+    const res = await fetch(endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ product_ids: selected, template_type: "default" }),
     });
     if (!res.ok) {
       const detail = await res.json().catch(() => ({}));
-      setStatus(detail?.detail ?? "Export failed");
+      setStatus(detail?.detail ?? `${channel.label} 내보내기에 실패했습니다.`);
       return;
     }
     const blob = await res.blob();
     const url = window.URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     anchor.href = url;
-    anchor.download = "smartstore_products.csv";
+    anchor.download = `${channel.value}_products.csv`;
     anchor.click();
     window.URL.revokeObjectURL(url);
-    setStatus("Export ready. Download started.");
+    setStatus(`${channel.label} 내보내기가 준비되었습니다. 다운로드가 시작됩니다.`);
   };
 
   return (
     <div className="space-y-4">
-      <div className="flex items-start justify-between">
-        <div>
-          <h1 className="text-xl font-semibold">SmartStore Export</h1>
-          <p className="text-sm text-slate-600">Choose localized products and download the SmartStore bulk upload CSV.</p>
+      <div className="flex flex-col gap-3">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h1 className="text-xl font-semibold">SmartStore Export</h1>
+            <p className="text-sm text-slate-600">Choose localized products and download the SmartStore bulk upload CSV.</p>
+          </div>
+          {status && <div className="text-sm text-slate-600">{status}</div>}
         </div>
-        {status && <div className="text-sm text-slate-600">{status}</div>}
+        <ChannelSelector showStatus />
+        <div className="text-xs text-slate-500">{statusMessage}</div>
       </div>
       {isLoading && <div>Loading products...</div>}
       {error && <div className="text-red-600">{String(error)}</div>}
