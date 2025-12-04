@@ -1,180 +1,55 @@
 # QQQ Purchase Agency Assistant Architecture
 
-## Technical Stack Proposal
-- **Backend**: FastAPI (Python 3.11), Uvicorn for ASGI server
-- **ORM**: SQLAlchemy 2.x with Alembic for migrations; Pydantic v2 for schemas
-- **Database**: PostgreSQL (development can use SQLite); connection via SQLAlchemy
-- **Authentication**: Simple session/JWT placeholder (single-operator ready)
-- **Task/Background Jobs**: FastAPI background tasks (future: Celery/RQ)
-- **Frontend**: React 18 with TypeScript, Vite build tool, React Query for data fetching, React Router for page navigation, Tailwind CSS for utility styling
-- **API Contract**: RESTful JSON over HTTP; file uploads for spreadsheets
-- **Packaging**: `pyproject.toml` using `uvicorn[standard]`, `fastapi`, `sqlalchemy`, `alembic`, `pydantic` dependencies; frontend `package.json` with Vite/React/TypeScript/Tailwind
+## Stack Overview
+- **Backend**: FastAPI application in `backend/app/main.py` using Python 3.11, SQLAlchemy ORM sessions (`backend/app/database.py`), and Pydantic v2 schemas.
+- **Database**: SQLite by default via `DATABASE_URL`, with lightweight in-place schema upgrades to keep existing tables compatible when optional columns are added.
+- **Frontend**: React 18 + TypeScript bootstrapped with Vite (`frontend/`), React Router for page structure, and React Query for client-side data fetching and caching.
+- **Build/Tooling**: `start.sh` boots the editable FastAPI install and Vite dev server together; environment configuration is read from `.env` through `pydantic-settings`.
 
-## Core Domain Entities
-- Product, ProductOption, ProductLocalizedInfo
-- SalesChannelTemplate
-- Order, OrderItem, Shipment, OrderShipmentLink, OrderStatusHistory
+## Backend Architecture
+### Application startup & persistence
+- The ASGI app is created by `create_app()` and includes routers for products, orders, shipments, exports, and purchase orders before exposing `/health` for monitoring.
+- Database sessions are provided per-request and committed/rolled back centrally; `apply_schema_upgrades()` patches existing SQLite tables with new columns (e.g., localized option names, cleaned image URLs) after `Base.metadata.create_all` runs.
 
-## REST API Design (initial draft)
-### Product Ingestion & Localization
-- `POST /api/products:import` — body: `{ source_url, source_site }`; triggers scrape/parse and stores Product. Returns Product with parsed options.
-- `GET /api/products` — list products with filters (source_site, keyword, date range).
-- `GET /api/products/{product_id}` — retrieve product + options + localization.
-- `PUT /api/products/{product_id}/localization` — save ProductLocalizedInfo (title, description, option display format, locale).
-- `PUT /api/products/{product_id}/options/{option_id}` — edit option names/prices.
+### Domain model highlights
+- **Product** entities store scraped source metadata, raw and cleaned image URLs, and own multiple **ProductOption** rows that can carry a localized name for exports.
+- **ProductLocalizedInfo** captures translated titles/descriptions per locale.
+- **Order**, **OrderItem**, **Shipment**, and **OrderShipmentLink** track downstream fulfillment, while **OrderStatusHistory** logs changes.
+- **PurchaseOrder**, **PurchaseOrderItem**, **PurchaseOrderSourceLink**, and **PurchaseOrderStatusHistory** aggregate customer orders into supplier-facing purchase batches.
 
-### Sales Channel Export
-- `POST /api/exports/channel/{channel_name}` — body: `{ product_ids: [], template_type }`; returns generated file metadata & presigned download URL placeholder.
+### Core services & flows
+- **Product import**: `ProductImportService` routes `/api/products/import` requests to a Taobao scraper, deduplicates by source URL, masks text in product images through `ImageCleanupService`, and persists products/options with cleaned image variants.
+- **Translation**: `/api/products/{product_id}/translate` calls `TranslationService`, which prefers the Google Cloud Translation API (configurable via `TRANSLATION_PROVIDER`/credentials) and falls back to deterministic stub output when credentials are absent, while saving localized option names and info records.
+- **Exports**: `SmartStoreExporter` powers `/api/exports/channel/smartstore`, converting selected products to CSV with pricing adjustments (exchange rate, margin, VAT, shipping) and appending a configurable return-policy image block; files are streamed to the client and also written to `SALES_CHANNEL_EXPORT_DIR`.
+- **Orders & shipments**: `/api/orders` supports create/list/status updates; `/api/shipments` links carrier tracking to orders through repository-backed services.
+- **Purchase orders**: `/api/purchase-orders` aggregates `NEW` orders by product/option into supplier-facing purchase orders, writes linkage records back to the originating order items, and marks customer orders as `PENDING_PURCHASE`.
 
-### Orders & Procurement
-- `POST /api/orders:upload` — multipart/form-data with file; parses spreadsheet into Orders & OrderItems.
-- `GET /api/orders` — list orders with status filters.
-- `GET /api/orders/{order_id}` — detailed order, items, shipments, history.
-- `PUT /api/orders/{order_id}/status` — body: `{ new_status, reason }`; appends OrderStatusHistory.
-- `POST /api/purchase-orders` — aggregate Orders by product/option where status = `NEW`; returns procurement list and saves snapshot.
+### REST API surface (current)
+- `POST /api/products/import` — Scrape Taobao/Tmall/1688 product details and create Product + ProductOption rows.
+- `GET /api/products` — List stored products.
+- `PUT /api/products/{product_id}/localization` — Save localized title/description and option display format.
+- `POST /api/products/{product_id}/translate` — Translate titles/options using the configured provider and persist `ProductLocalizedInfo`.
+- `POST /api/exports/channel/smartstore` — Export selected products to SmartStore-ready CSV with pricing and return-policy template settings.
+- `POST /api/orders` / `GET /api/orders` / `PUT /api/orders/{order_id}/status` — Create/list/update orders with history logging.
+- `POST /api/shipments` / `GET /api/shipments` — Create and view shipments linked to orders.
+- `POST /api/purchase-orders` / `GET /api/purchase-orders/{po_id}` / `PUT /api/purchase-orders/{po_id}/status` — Generate purchase orders from outstanding customer orders and manage their lifecycle.
 
-### Shipments
-- `POST /api/shipments` — body: `{ carrier_name, tracking_number, shipment_type, linked_order_ids: [] }`.
-- `GET /api/shipments` — list shipments with latest status.
-- `PUT /api/shipments/{shipment_id}` — update tracking or status (manual override).
+## Frontend Architecture
+- The SPA root (`frontend/src/main.tsx`) wires React Router routes and a shared QueryClient. Navigation covers product management, imports, SmartStore exports, order upload/list, purchase orders, and shipments.
+- Page components live under `frontend/src/pages/` and call the REST API directly (e.g., `ImportProductPage` POSTs to `/api/products/import`). Styling relies on Tailwind CSS classes defined in `index.css` and related configs.
 
-### Customer Templates
-- `POST /api/templates/messages` — body: `{ order_id, template_type }`; responds with generated message text.
-
-### Reporting
-- `GET /api/reports/sales` — query params: date range, channel; returns totals, counts.
-- `GET /api/reports/products` — top products/quantities.
-- `GET /api/reports/cancellations` — refund/cancel ratios.
-
-## Frontend Page Map
-- `/products` — product list & detail preview; button to add new URL.
-- `/products/import` — form to submit overseas URL.
-- `/orders/upload` — upload order spreadsheet; show parse summary.
-- `/orders` — order list with status filters; detail drawer with shipments & history.
-- `/shipments` — list/create shipment tracking links.
-
-## Folder Layout (initial)
+## Source Layout
 ```
 backend/
   app/
-    api/          # FastAPI routers
-    models/       # SQLAlchemy models
-    schemas/      # Pydantic schemas
-    repositories/ # Data access layer
-    services/     # Business logic (parsing, localization, exports)
-    main.py       # FastAPI app factory
-    database.py   # DB session + engine
+    api/              # FastAPI routers for products, orders, shipments, exports, purchase-orders
+    services/         # Business logic: scraping, translation, pricing, exports, purchase order aggregation
+    repositories/     # Data access helpers wrapping SQLAlchemy sessions
+    models/           # Domain entities
+    database.py, main.py, config.py
 frontend/
   src/
-    pages/        # React pages
-    components/   # Shared UI widgets
-  index.html
-  package.json
-  vite.config.ts
-  tsconfig.json
-```
-
-## Architecture Diagrams
-
-### System Context
-```mermaid
-flowchart LR
-    Operator([Operator]) -->|uses| Frontend[React SPA]
-    Frontend -->|REST/JSON| Backend[FastAPI]
-    Backend -->|SQLAlchemy ORM| DB[(PostgreSQL/SQLite)]
-    Backend -->|Scrape/Parse| Overseas[Overseas shop APIs/HTML]
-    Backend -->|Generates exports| Channels[Domestic sales channels]
-    Backend -->|Track shipments| Carriers[Carrier tracking APIs]
-```
-
-### Backend Layering (per request)
-```mermaid
-flowchart LR
-    Client[Frontend/HTTP client] --> Router[FastAPI Router]
-    Router --> Service[Service layer]
-    Service --> Repo[Repository layer]
-    Repo --> Models[SQLAlchemy models]
-    Models --> DB[(Database)]
-    Service --> Schemas[Pydantic schemas]
-```
-
-### Domain Entities (simplified)
-```mermaid
-classDiagram
-    class Product {
-      id
-      source_url
-      source_site
-      raw_title
-      raw_price
-      raw_currency
-      created_at
-      updated_at
-    }
-    class ProductOption {
-      id
-      option_key
-      raw_name
-      raw_price_diff
-    }
-    class ProductLocalizedInfo {
-      id
-      locale
-      title
-      description
-      option_display_name_format
-    }
-    class Order {
-      id
-      external_order_id
-      channel_name
-      customer_name
-      order_datetime
-      status
-      total_amount_krw
-    }
-    class OrderItem {
-      id
-      quantity
-      unit_price_krw
-    }
-    class Shipment {
-      id
-      carrier_name
-      tracking_number
-      shipment_type
-      last_status
-    }
-    class OrderStatusHistory {
-      id
-      previous_status
-      new_status
-      changed_at
-      reason
-    }
-    Product "1" -- "*" ProductOption
-    Product "1" -- "*" ProductLocalizedInfo
-    Order "1" -- "*" OrderItem
-    Order "1" -- "*" OrderStatusHistory
-    OrderItem "*" --> "1" Product
-    OrderItem "*" --> "1" ProductOption
-    Shipment "*" -- "*" Order : through links
-```
-
-### Main Request Flow (Product Import)
-```mermaid
-sequenceDiagram
-    participant Client
-    participant Router as FastAPI Router
-    participant Service as ProductImportService
-    participant DB as SQLAlchemy Session
-    participant Source as Overseas Site
-
-    Client->>Router: POST /api/products/import
-    Router->>Service: import_product(payload)
-    Service->>Source: fetch_product(source_url)
-    Service->>DB: insert Product + ProductOption rows
-    DB-->>Service: new identifiers
-    Service-->>Router: Product model
-    Router-->>Client: JSON response
+    pages/            # React route components
+    components/       # Shared UI (reserved for growth)
+  vite.config.ts, tailwind.config.js, package.json
 ```
