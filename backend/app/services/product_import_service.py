@@ -17,7 +17,12 @@ class ProductImportService:
         session: Session,
     ) -> None:
         self.session = session
-        self.scrapers = {"TAOBAO": TaobaoScraper()}
+        self.scrapers = {
+            "TAOBAO": TaobaoScraper(source_site="TAOBAO"),
+            "1688": TaobaoScraper(
+                source_site="1688", item_source_market="CBU_MARKET"
+            ),
+        }
 
     async def import_product(self, source_url: str, source_site: str) -> Product:
         scraper = self.scrapers.get(source_site.upper())

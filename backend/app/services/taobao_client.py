@@ -66,9 +66,15 @@ class TaobaoClient:
         return self.client.execute(request, token)
 
     def get_item_detail(
-        self, num_iid: int | str, *, access_token: Optional[str] = None
+        self,
+        num_iid: int | str,
+        *,
+        access_token: Optional[str] = None,
+        item_source_market: Optional[str] = None,
     ) -> Any:
         """Convenience wrapper for ``/product/get`` using a product identifier."""
 
         params = {"num_iid": num_iid}
+        if item_source_market:
+            params["item_source_market"] = item_source_market
         return self.execute(api_params=params, access_token=access_token)
