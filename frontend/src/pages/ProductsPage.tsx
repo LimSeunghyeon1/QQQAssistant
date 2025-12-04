@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 async function fetchProducts() {
   const res = await fetch("/api/products");
@@ -15,7 +15,7 @@ async function translateProduct(productId: number) {
   });
   if (!res.ok) {
     const detail = await res.json().catch(() => ({}));
-    throw new Error(detail?.detail ?? "Translation failed");
+    throw new Error(detail?.detail ?? "번역 실패");
   }
   return res.json();
 }
@@ -30,15 +30,23 @@ export default function ProductsPage() {
     mutationFn: translateProduct,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["products"] })
   });
-  const [message, setMessage] = useState<string>("");
+  const [toast, setToast] = useState<{ message: string; type: "info" | "success" | "error" } | null>(null);
+
+  useEffect(() => {
+    if (!toast) return;
+    const timer = setTimeout(() => setToast(null), 3000);
+    return () => clearTimeout(timer);
+  }, [toast]);
 
   const handleTranslate = async (productId: number) => {
-    setMessage("Translating...");
+    setToast({ message: "Translating...", type: "info" });
     try {
       await translateMutation.mutateAsync(productId);
-      setMessage("Translation completed");
+      setToast({ message: "Translation completed", type: "success" });
     } catch (err) {
-      setMessage((err as Error).message);
+      const message = (err as Error).message || "번역 실패";
+      setToast({ message, type: "error" });
+      window.alert(message);
     }
   };
 
@@ -51,7 +59,19 @@ export default function ProductsPage() {
             Overseas items collected for resale. Import a URL, then translate and export them for SmartStore.
           </p>
         </div>
-        {message && <div className="text-sm text-slate-600">{message}</div>}
+        {toast && (
+          <div
+            className={`text-sm px-3 py-2 rounded shadow ${
+              toast.type === "error"
+                ? "bg-red-100 text-red-700"
+                : toast.type === "success"
+                ? "bg-emerald-100 text-emerald-700"
+                : "bg-slate-100 text-slate-700"
+            }`}
+          >
+            {toast.message}
+          </div>
+        )}
       </div>
       {isLoading && <div>Loading...</div>}
       {error && <div className="text-red-600">{String(error)}</div>}
