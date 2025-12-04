@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from enum import Enum as PyEnum
 from typing import List, Optional
 
 from sqlalchemy import JSON, DateTime, Enum, ForeignKey, Numeric, String, Text
@@ -108,6 +109,12 @@ class Order(Base):
     status_history: Mapped[List["OrderStatusHistory"]] = relationship(
         back_populates="order", cascade="all, delete-orphan"
     )
+    after_sales_cases: Mapped[List["AfterSalesCase"]] = relationship(
+        back_populates="order", cascade="all, delete-orphan"
+    )
+    refund_records: Mapped[List["RefundRecord"]] = relationship(
+        back_populates="order", cascade="all, delete-orphan"
+    )
 
 
 class OrderItem(Base):
@@ -128,6 +135,12 @@ class OrderItem(Base):
     purchase_order_links: Mapped[List["PurchaseOrderSourceLink"]] = relationship(
         back_populates="order_item", cascade="all, delete-orphan"
     )
+    after_sales_cases: Mapped[List["AfterSalesCase"]] = relationship(
+        back_populates="order_item", cascade="all, delete-orphan"
+    )
+    refund_records: Mapped[List["RefundRecord"]] = relationship(
+        back_populates="order_item", cascade="all, delete-orphan"
+    )
 
 
 class Shipment(Base):
@@ -142,6 +155,13 @@ class Shipment(Base):
     last_status: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
 
     orders: Mapped[List["OrderShipmentLink"]] = relationship(
+        back_populates="shipment", cascade="all, delete-orphan"
+    )
+
+    after_sales_cases: Mapped[List["AfterSalesCase"]] = relationship(
+        back_populates="shipment", cascade="all, delete-orphan"
+    )
+    refund_records: Mapped[List["RefundRecord"]] = relationship(
         back_populates="shipment", cascade="all, delete-orphan"
     )
 
@@ -243,3 +263,118 @@ class PurchaseOrderStatusHistory(Base):
     reason: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     purchase_order: Mapped[PurchaseOrder] = relationship(back_populates="status_history")
+
+
+class AfterSalesNotificationChannel(PyEnum):
+    EMAIL = "EMAIL"
+    SMS = "SMS"
+    IN_APP = "IN_APP"
+    NONE = "NONE"
+
+
+class AfterSalesCaseStatus(PyEnum):
+    OPEN = "OPEN"
+    IN_PROGRESS = "IN_PROGRESS"
+    WAITING_REFUND = "WAITING_REFUND"
+    RESOLVED = "RESOLVED"
+    REJECTED = "REJECTED"
+
+
+class AfterSalesCaseType(PyEnum):
+    RETURN = "RETURN"
+    EXCHANGE = "EXCHANGE"
+    REPAIR = "REPAIR"
+    INQUIRY = "INQUIRY"
+
+
+class RefundStatus(PyEnum):
+    REQUESTED = "REQUESTED"
+    APPROVED = "APPROVED"
+    REJECTED = "REJECTED"
+    PROCESSED = "PROCESSED"
+
+
+class RefundAmountType(PyEnum):
+    FULL = "FULL"
+    PARTIAL = "PARTIAL"
+    SHIPPING_ONLY = "SHIPPING_ONLY"
+    ADJUSTMENT = "ADJUSTMENT"
+
+
+class AfterSalesCase(Base):
+    __tablename__ = "after_sales_cases"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    order_id: Mapped[int] = mapped_column(ForeignKey("orders.id"))
+    order_item_id: Mapped[int | None] = mapped_column(
+        ForeignKey("order_items.id"), nullable=True
+    )
+    shipment_id: Mapped[int | None] = mapped_column(
+        ForeignKey("shipments.id"), nullable=True
+    )
+    case_type: Mapped[AfterSalesCaseType] = mapped_column(
+        Enum(AfterSalesCaseType, name="after_sales_case_type")
+    )
+    status: Mapped[AfterSalesCaseStatus] = mapped_column(
+        Enum(AfterSalesCaseStatus, name="after_sales_case_status"),
+        default=AfterSalesCaseStatus.OPEN,
+    )
+    customer_notification_channel: Mapped[AfterSalesNotificationChannel] = mapped_column(
+        Enum(AfterSalesNotificationChannel, name="after_sales_notification_channel"),
+        default=AfterSalesNotificationChannel.IN_APP,
+    )
+    claim_amount_krw: Mapped[float | None] = mapped_column(
+        Numeric(14, 2), nullable=True
+    )
+    summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    customer_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    resolution_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
+    )
+
+    order: Mapped[Order] = relationship(back_populates="after_sales_cases")
+    order_item: Mapped[OrderItem | None] = relationship(back_populates="after_sales_cases")
+    shipment: Mapped[Shipment | None] = relationship(back_populates="after_sales_cases")
+    refund_records: Mapped[List["RefundRecord"]] = relationship(
+        back_populates="after_sales_case", cascade="all, delete-orphan"
+    )
+
+
+class RefundRecord(Base):
+    __tablename__ = "refund_records"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    order_id: Mapped[int] = mapped_column(ForeignKey("orders.id"))
+    order_item_id: Mapped[int | None] = mapped_column(
+        ForeignKey("order_items.id"), nullable=True
+    )
+    shipment_id: Mapped[int | None] = mapped_column(
+        ForeignKey("shipments.id"), nullable=True
+    )
+    after_sales_case_id: Mapped[int | None] = mapped_column(
+        ForeignKey("after_sales_cases.id"), nullable=True
+    )
+    amount_type: Mapped[RefundAmountType] = mapped_column(
+        Enum(RefundAmountType, name="refund_amount_type"),
+        default=RefundAmountType.FULL,
+    )
+    refund_amount_krw: Mapped[float] = mapped_column(Numeric(14, 2))
+    refund_currency: Mapped[str] = mapped_column(String(10), default="KRW")
+    status: Mapped[RefundStatus] = mapped_column(
+        Enum(RefundStatus, name="refund_status"), default=RefundStatus.REQUESTED
+    )
+    refund_method: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
+    )
+
+    order: Mapped[Order] = relationship(back_populates="refund_records")
+    order_item: Mapped[OrderItem | None] = relationship(back_populates="refund_records")
+    shipment: Mapped[Shipment | None] = relationship(back_populates="refund_records")
+    after_sales_case: Mapped[AfterSalesCase | None] = relationship(
+        back_populates="refund_records"
+    )
