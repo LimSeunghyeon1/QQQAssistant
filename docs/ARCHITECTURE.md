@@ -8,13 +8,14 @@
 
 ## Backend Architecture
 ### Application startup & persistence
-- The ASGI app is created by `create_app()` and includes routers for products, orders, shipments, exports, and purchase orders before exposing `/health` for monitoring.
+- The ASGI app is created by `create_app()` and includes routers for products, orders, shipments, after-sales, exports, and purchase orders before exposing `/health` for monitoring.
 - Database sessions are provided per-request and committed/rolled back centrally; `apply_schema_upgrades()` patches existing SQLite tables with new columns (e.g., localized option names) after `Base.metadata.create_all` runs.
 
 ### Domain model highlights
 - **Product** entities store scraped source metadata, raw image URLs, and own multiple **ProductOption** rows that can carry a localized name for exports.
 - **ProductLocalizedInfo** captures translated titles/descriptions per locale.
 - **Order**, **OrderItem**, **Shipment**, and **OrderShipmentLink** track downstream fulfillment, while **OrderStatusHistory** logs changes.
+- **AfterSalesCase** and **RefundRecord** attach to orders/items/shipments to capture returns, exchanges, repairs, and refunds with dedicated enums for status, type, notification channels, and refund amount types.
 - **PurchaseOrder**, **PurchaseOrderItem**, **PurchaseOrderSourceLink**, and **PurchaseOrderStatusHistory** aggregate customer orders into supplier-facing purchase batches.
 
 ### Core services & flows
@@ -22,6 +23,7 @@
 - **Translation**: `/api/products/{product_id}/translate` calls `TranslationService`, which prefers the Google Cloud Translation API (configurable via `TRANSLATION_PROVIDER`/credentials) and falls back to deterministic stub output when credentials are absent, while saving localized option names and info records.
 - **Exports**: `SmartStoreExporter` powers `/api/exports/channel/smartstore`, converting selected products to CSV with pricing adjustments (exchange rate, margin, VAT, shipping) and appending a configurable return-policy image block; files are streamed to the client and also written to `SALES_CHANNEL_EXPORT_DIR`.
 - **Orders & shipments**: `/api/orders` supports create/list/status updates; `/api/shipments` links carrier tracking to orders through repository-backed services.
+- **After-sales**: `AfterSalesService` powers `/api/after-sales` endpoints to create cases, update case statuses with optional order history updates, attach return/reshipment shipments, and record refunds tied to orders/items/shipments.
 - **Purchase orders**: `/api/purchase-orders` aggregates `NEW` orders by product/option into supplier-facing purchase orders, writes linkage records back to the originating order items, and marks customer orders as `PENDING_PURCHASE`.
 
 ### REST API surface (current)
@@ -32,6 +34,8 @@
 - `POST /api/exports/channel/smartstore` — Export selected products to SmartStore-ready CSV with pricing and return-policy template settings.
 - `POST /api/orders` / `GET /api/orders` / `PUT /api/orders/{order_id}/status` — Create/list/update orders with history logging.
 - `POST /api/shipments` / `GET /api/shipments` — Create and view shipments linked to orders.
+- `POST /api/after-sales/cases` / `PUT /api/after-sales/cases/{case_id}/status` / `PUT /api/after-sales/cases/{case_id}/shipment` — Manage after-sales cases, status transitions, and associated shipments.
+- `POST /api/after-sales/refunds` — Record refunds connected to orders/items/shipments (optionally tied to a case) and update order status history.
 - `POST /api/purchase-orders` / `GET /api/purchase-orders/{po_id}` / `PUT /api/purchase-orders/{po_id}/status` — Generate purchase orders from outstanding customer orders and manage their lifecycle.
 
 ## Frontend Architecture
