@@ -28,6 +28,10 @@ class ScrapedProduct:
     options: List[ScrapedOption] = field(default_factory=list)
 
 
+class ScrapeFailed(Exception):
+    """Raised when scraping a product from Taobao fails."""
+
+
 class TaobaoScraper:
     """Scraper that delegates to the official Taobao TOP API client."""
 
@@ -39,8 +43,10 @@ class TaobaoScraper:
 
     async def fetch_product(self, url: str) -> ScrapedProduct:
         num_iid = self._extract_num_iid(url)
-        if not num_iid or not self.client:
-            return self._fallback_product(url)
+        if not num_iid:
+            raise ScrapeFailed("상품 ID를 URL에서 추출할 수 없습니다.")
+        if not self.client:
+            raise ScrapeFailed("Taobao 클라이언트를 초기화하지 못했습니다.")
 
         try:
             data = await asyncio.to_thread(self.client.get_item_detail, num_iid)
@@ -50,8 +56,8 @@ class TaobaoScraper:
             pic_url = item.get("pic_url", "")
             image_urls = [pic_url] if pic_url else []
             detail_image_urls: List[str] = []
-        except Exception:
-            return self._fallback_product(url)
+        except Exception as exc:
+            raise ScrapeFailed("상품 정보를 불러오는 중 오류가 발생했습니다.") from exc
 
         options: List[ScrapedOption] = []
         for sku in item.get("skus", {}).get("sku", []) or []:
@@ -74,20 +80,6 @@ class TaobaoScraper:
             image_urls=image_urls,
             detail_image_urls=detail_image_urls,
             options=options,
-        )
-
-    def _fallback_product(self, url: str) -> ScrapedProduct:
-        default_option = ScrapedOption(option_key="default", raw_name="Default")
-
-        return ScrapedProduct(
-            source_url=url,
-            source_site="TAOBAO",
-            title="Dummy Taobao Product",
-            price=0.0,
-            currency="CNY",
-            image_urls=[],
-            detail_image_urls=[],
-            options=[default_option],
         )
 
     def _extract_num_iid(self, url: str) -> Optional[str]:

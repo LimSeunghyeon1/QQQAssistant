@@ -4,7 +4,12 @@ from sqlalchemy.orm import Session
 
 from app.models.domain import Product, ProductOption
 from app.services.image_cleanup import ImageCleanupService
-from app.services.taobao_scraper import ScrapedOption, ScrapedProduct, TaobaoScraper
+from app.services.taobao_scraper import (
+    ScrapeFailed,
+    ScrapedOption,
+    ScrapedProduct,
+    TaobaoScraper,
+)
 
 
 class ProductImportService:
@@ -29,7 +34,12 @@ class ProductImportService:
         if existing:
             return existing
 
-        scraped: ScrapedProduct = await scraper.fetch_product(source_url)
+        try:
+            scraped: ScrapedProduct = await scraper.fetch_product(source_url)
+        except ScrapeFailed as exc:
+            raise ValueError(
+                "상품 정보를 불러오지 못했습니다. URL을 확인하고 다시 시도해주세요."
+            ) from exc
 
         if not scraped.options:
             scraped.options = [

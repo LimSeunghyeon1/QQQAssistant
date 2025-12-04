@@ -1,7 +1,10 @@
 import { useState } from "react";
 
 export default function ImportProductPage() {
-  const [status, setStatus] = useState<string>("");
+  const [status, setStatus] = useState<{
+    message: string;
+    tone: "idle" | "info" | "success" | "error";
+  }>({ message: "", tone: "idle" });
 
   const parseNumber = (value: FormDataEntryValue | null) => {
     if (value === null || value === "") return undefined;
@@ -21,15 +24,15 @@ export default function ImportProductPage() {
     };
 
     if (overrides.exchange_rate !== undefined && overrides.exchange_rate <= 0) {
-      setStatus("환율은 0보다 커야 합니다.");
+      setStatus({ message: "환율은 0보다 커야 합니다.", tone: "error" });
       return;
     }
     if (overrides.shipping_fee !== undefined && overrides.shipping_fee < 0) {
-      setStatus("배송비는 0 이상이어야 합니다.");
+      setStatus({ message: "배송비는 0 이상이어야 합니다.", tone: "error" });
       return;
     }
 
-    setStatus("Submitting...");
+    setStatus({ message: "Submitting...", tone: "info" });
     const res = await fetch("/api/products/import", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -56,16 +59,27 @@ export default function ImportProductPage() {
         });
         if (!updateRes.ok) {
           const detail = await updateRes.json().catch(() => ({}));
-          setStatus(detail?.detail ?? "세부 설정 저장에 실패했습니다.");
+          setStatus({
+            message: detail?.detail ?? "세부 설정 저장에 실패했습니다.",
+            tone: "error",
+          });
           return;
         }
       }
 
-      setStatus("Imported and queued for localization");
+      setStatus({
+        message: "Imported and queued for localization",
+        tone: "success",
+      });
       e.currentTarget.reset();
     } else {
       const detail = await res.json().catch(() => ({}));
-      setStatus(detail?.detail ?? "Failed to import");
+      setStatus({
+        message:
+          detail?.detail ??
+          "상품 정보를 불러오지 못했습니다. URL을 확인하거나 잠시 후 다시 시도해주세요.",
+        tone: "error",
+      });
     }
   };
 
@@ -99,7 +113,20 @@ export default function ImportProductPage() {
           </label>
         </div>
         <button type="submit" className="px-4 py-2 bg-indigo-600 text-white rounded">Submit</button>
-        {status && <div className="text-sm text-slate-600">{status}</div>}
+        {status.message && (
+          <div
+            className={`text-sm px-3 py-2 rounded ${
+              status.tone === "error"
+                ? "bg-red-100 text-red-700"
+                : status.tone === "success"
+                  ? "bg-green-100 text-green-700"
+                  : "bg-slate-100 text-slate-700"
+            }`}
+            role={status.tone === "error" ? "alert" : undefined}
+          >
+            {status.message}
+          </div>
+        )}
       </form>
     </div>
   );

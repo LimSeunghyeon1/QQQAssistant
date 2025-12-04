@@ -22,7 +22,12 @@ from app.models.domain import Product, ProductLocalizedInfo, ProductOption
 from app.main import app
 from app.services import PricingInputs, PricingService
 from app.services.exporter_smartstore import SmartStoreExporter
-from app.services.taobao_scraper import ScrapedOption, ScrapedProduct, TaobaoScraper
+from app.services.taobao_scraper import (
+    ScrapeFailed,
+    ScrapedOption,
+    ScrapedProduct,
+    TaobaoScraper,
+)
 from app.services.translation_service import (
     TranslationError,
     TranslationService,
@@ -134,6 +139,55 @@ def create_order(
     resp = client.post("/api/orders", json=order_payload)
     assert resp.status_code == 200, resp.text
     return resp.json()
+
+
+def test_product_import_uses_scraped_payload(client: TestClient, monkeypatch):
+    async def fake_fetch_product(self, url: str) -> ScrapedProduct:
+        return ScrapedProduct(
+            source_url=url,
+            source_site="TAOBAO",
+            title="Real Item",
+            price=123.45,
+            currency="CNY",
+            image_urls=["https://example.com/img.jpg"],
+            detail_image_urls=[],
+            options=[
+                ScrapedOption(option_key="default", raw_name="옵션", raw_price_diff=0)
+            ],
+        )
+
+    monkeypatch.setattr(TaobaoScraper, "fetch_product", fake_fetch_product)
+
+    resp = client.post(
+        "/api/products/import",
+        json={
+            "source_url": "https://item.taobao.com/item.htm?id=1",
+            "source_site": "TAOBAO",
+        },
+    )
+
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["raw_title"] == "Real Item"
+    assert body["raw_price"] == 123.45
+
+
+def test_product_import_propagates_scrape_failure(client: TestClient, monkeypatch):
+    async def failing_fetch_product(self, url: str) -> ScrapedProduct:
+        raise ScrapeFailed("상품 정보를 불러오지 못했습니다.")
+
+    monkeypatch.setattr(TaobaoScraper, "fetch_product", failing_fetch_product)
+
+    resp = client.post(
+        "/api/products/import",
+        json={
+            "source_url": "https://item.taobao.com/item.htm?id=error",
+            "source_site": "TAOBAO",
+        },
+    )
+
+    assert resp.status_code == 400
+    assert "상품 정보를 불러오지 못했습니다" in resp.json()["detail"]
 
 
 def test_product_import_and_localization(client: TestClient):
