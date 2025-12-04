@@ -46,4 +46,4 @@ class PricingService:
         subtotal = base_cost_krw + float(delivery_fee)
         with_margin = subtotal * (1 + float(margin) / 100)
         final_price = with_margin * (1 + float(vat) / 100)
-        return round(final_price, 2)
+        return round(final_price / 10) * 10

@@ -357,7 +357,7 @@ def test_pricing_service_combinations():
                 include_vat=True,
                 vat_rate=0.1,
             ),
-            23375,
+            23380,
         ),
         (PricingInputs(base_price=5, exchange_rate=1000), 5000),
         (
