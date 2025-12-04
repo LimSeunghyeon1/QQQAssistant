@@ -37,7 +37,7 @@ class PricingService:
         exchange_rate: float | None = None,
     ) -> float:
         ctx = self.context
-        rate = exchange_rate or ctx.exchange_rate
+        rate = exchange_rate if exchange_rate is not None else ctx.exchange_rate
         margin = margin_rate if margin_rate is not None else ctx.default_margin
         vat = vat_rate if vat_rate is not None else ctx.vat_rate
         delivery_fee = shipping_fee if shipping_fee is not None else ctx.default_delivery

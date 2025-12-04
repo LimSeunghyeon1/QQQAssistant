@@ -13,6 +13,7 @@ from app.schemas.product import (
     ProductLocalizedInfoRead,
     ProductRead,
     ProductTranslateRequest,
+    ProductUpdate,
 )
 from app.services.product_import_service import ProductImportService
 from app.services.product_service import ProductService
@@ -44,6 +45,19 @@ async def import_product(
 @router.get("", response_model=list[ProductRead])
 def list_products(service: ProductService = Depends(get_service)):
     return service.list()
+
+
+@router.patch("/{product_id}", response_model=ProductRead)
+def update_product(
+    product_id: int,
+    payload: ProductUpdate,
+    service: ProductService = Depends(get_service),
+    session: Session = Depends(get_session),
+):
+    product = session.get(Product, product_id)
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+    return service.update_pricing(product, payload)
 
 
 @router.put("/{product_id}/localization", response_model=ProductRead)

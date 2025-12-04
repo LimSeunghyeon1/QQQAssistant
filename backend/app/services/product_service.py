@@ -4,7 +4,11 @@ from typing import List
 
 from app.models.domain import Product, ProductLocalizedInfo, ProductOption
 from app.repositories.product_repository import ProductRepository
-from app.schemas.product import ProductCreate, ProductLocalizedInfoCreate
+from app.schemas.product import (
+    ProductCreate,
+    ProductLocalizedInfoCreate,
+    ProductUpdate,
+)
 
 
 class ProductService:
@@ -18,6 +22,10 @@ class ProductService:
             raw_title=payload.raw_title,
             raw_price=payload.raw_price,
             raw_currency=payload.raw_currency,
+            exchange_rate=payload.exchange_rate,
+            margin_rate=payload.margin_rate,
+            vat_rate=payload.vat_rate,
+            shipping_fee=payload.shipping_fee,
             raw_description=payload.raw_description,
             thumbnail_image_urls=payload.thumbnail_image_urls,
             detail_image_urls=payload.detail_image_urls,
@@ -45,3 +53,10 @@ class ProductService:
 
     def list(self) -> List[Product]:
         return list(self.repo.list())
+
+    def update_pricing(self, product: Product, payload: ProductUpdate) -> Product:
+        for field, value in payload.model_dump(exclude_unset=True).items():
+            setattr(product, field, value)
+        self.repo.session.flush()
+        self.repo.session.refresh(product)
+        return product
