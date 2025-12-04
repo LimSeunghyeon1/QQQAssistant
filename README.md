@@ -41,6 +41,14 @@ The backend will be available on port `8000` with a `/health` check, and the fro
 4. Tweak pricing/margins and export selected products through `/api/exports/channel/smartstore`, which streams a CSV and also writes it to `SALES_CHANNEL_EXPORT_DIR`.
 5. Upload orders, manage shipments, and batch outstanding orders into supplier purchase orders from the same UI.
 
+### Manual verification: SmartStore pricing overrides
+
+Because SmartStore uploads are sensitive to pricing, perform a quick manual check when you change per-product overrides:
+
+1. Import a product and set `환율/마진율/VAT/배송비` from the import form or SmartStore export page cards, then click **Save product pricing**.
+2. Export a CSV for the same product(s) from **SmartStore Export**.
+3. Open the generated CSV and confirm the `판매가` column reflects your saved overrides (e.g., adjust one field and export again to verify the value changes). If the price does not change, re-save the overrides and retry the export.
+
 ## Running the backend test suite
 
 Backend unit and integration tests live under `backend/tests`. To execute them end-to-end:
@@ -78,5 +86,6 @@ Key variables:
 | `TAOBAO_SESSION_KEY` | Active Taobao session key (grant token). Required for fetching products by URL. | `your-session-key` |
 | `TAOBAO_API_URL` | Taobao Open Platform API host. | `https://gw.api.taobao.com/router/rest` |
 | `SALES_CHANNEL_EXPORT_DIR` | Directory where generated upload/export files will be written. | `./exports` |
+| `EXCHANGE_RATE` / `DEFAULT_MARGIN` / `VAT_RATE` / `DEFAULT_DELIVERY` | Optional pricing defaults when a product does not define overrides. Leave unset to use the baked-in defaults from `app.config.Settings`. | `185.2` / `15` / `10` / `3500` |
 
 FastAPI automatically loads these via `pydantic-settings`; ensure the `.env` file sits at the repository root (same level as `backend/`). SmartStore CSV exports are saved into `SALES_CHANNEL_EXPORT_DIR` in addition to being streamed in the response.

@@ -62,10 +62,10 @@ class SmartStoreExporter:
             if not options:
                 price = self.pricing.calculate_sale_price(
                     float(product.raw_price),
-                    shipping_fee=self.template_config.get("shipping_fee"),
-                    margin_rate=self.template_config.get("margin"),
-                    vat_rate=self.template_config.get("vat"),
-                    exchange_rate=self.template_config.get("exchange_rate"),
+                    shipping_fee=self._shipping_fee(product),
+                    margin_rate=self._margin(product),
+                    vat_rate=self._vat(product),
+                    exchange_rate=self._exchange_rate(product),
                 )
                 writer.writerow([ko_title, price, 0, "", "", description, self._primary_image(product)])
             else:
@@ -75,10 +75,10 @@ class SmartStoreExporter:
                     price = self.pricing.calculate_sale_price(
                         float(product.raw_price),
                         float(opt.raw_price_diff or 0),
-                        shipping_fee=self.template_config.get("shipping_fee"),
-                        margin_rate=self.template_config.get("margin"),
-                        vat_rate=self.template_config.get("vat"),
-                        exchange_rate=self.template_config.get("exchange_rate"),
+                        shipping_fee=self._shipping_fee(product),
+                        margin_rate=self._margin(product),
+                        vat_rate=self._vat(product),
+                        exchange_rate=self._exchange_rate(product),
                     )
                     writer.writerow(
                         [
@@ -107,3 +107,27 @@ class SmartStoreExporter:
         if product.image_urls:
             return product.image_urls[0]
         return ""
+
+    def _exchange_rate(self, product: Product) -> float | None:
+        if product.exchange_rate is not None:
+            return float(product.exchange_rate)
+        exchange_rate = self.template_config.get("exchange_rate")
+        return float(exchange_rate) if exchange_rate is not None else None
+
+    def _margin(self, product: Product) -> float | None:
+        if product.margin_rate is not None:
+            return float(product.margin_rate)
+        margin = self.template_config.get("margin")
+        return float(margin) if margin is not None else None
+
+    def _vat(self, product: Product) -> float | None:
+        if product.vat_rate is not None:
+            return float(product.vat_rate)
+        vat = self.template_config.get("vat")
+        return float(vat) if vat is not None else None
+
+    def _shipping_fee(self, product: Product) -> float | None:
+        if product.shipping_fee is not None:
+            return float(product.shipping_fee)
+        shipping_fee = self.template_config.get("shipping_fee")
+        return float(shipping_fee) if shipping_fee is not None else None
