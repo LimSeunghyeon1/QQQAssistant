@@ -23,7 +23,7 @@ from app.main import app
 from app.services import PricingInputs, PricingService
 from app.services.exporter_smartstore import SmartStoreExporter
 from app.services.taobao_scraper import ScrapedOption, ScrapedProduct, TaobaoScraper
-from app.services.translation_service import TranslationService
+from app.services.translation_service import TranslationError, TranslationService
 
 
 # Shared in-memory database for test cases
@@ -229,21 +229,20 @@ def test_shipment_creation_links_orders(client: TestClient):
     assert len(list_resp.json()) >= 1
 
 
-def test_translation_endpoint_populates_localization(client: TestClient):
-    product_id, option_id = create_sample_product(client, index=2)
+def test_translation_endpoint_returns_failure(client: TestClient):
+    product_id, _ = create_sample_product(client, index=2)
 
     resp = client.post(
         f"/api/products/{product_id}/translate",
         json={"target_locale": "ko-KR", "provider": "gcloud"},
     )
-    assert resp.status_code == 200, resp.text
-    localized = resp.json()
-    assert localized["locale"] == "ko-KR"
+    assert resp.status_code == 400, resp.text
+    assert resp.json()["detail"] == "번역 실패"
 
     products_resp = client.get("/api/products")
     product = next(p for p in products_resp.json() if p["id"] == product_id)
-    assert product["options"][0]["localized_name"].endswith("(ko)")
-    assert product["localizations"][0]["title"].endswith("(ko)")
+    assert product["options"][0].get("localized_name") is None
+    assert product.get("localizations") == []
 
 
 def test_purchase_order_creation_updates_orders(client: TestClient):
@@ -276,7 +275,7 @@ def test_purchase_order_creation_updates_orders(client: TestClient):
     )
 
 
-def test_translation_service_translates_title_and_options(db_session):
+def test_translation_service_signals_failure_without_client(db_session):
     product = Product(
         source_url="https://example.com/item/translate",
         source_site="TAOBAO",
@@ -295,14 +294,17 @@ def test_translation_service_translates_title_and_options(db_session):
     db_session.commit()
 
     service = TranslationService(db_session)
-    localized = service.translate_product(product.id, target_locale="ko-KR")
-
-    assert localized.locale == "ko-KR"
-    assert localized.title.endswith("(ko)")
-    assert localized.description.endswith("(ko)")
+    with pytest.raises(TranslationError):
+        service.translate_product(product.id, target_locale="ko-KR")
 
     updated_option = db_session.get(ProductOption, option.id)
-    assert updated_option.localized_name.endswith("(ko)")
+    assert updated_option.localized_name is None
+    localized = (
+        db_session.query(ProductLocalizedInfo)
+        .filter(ProductLocalizedInfo.product_id == product.id)
+        .all()
+    )
+    assert localized == []
 
 
 def test_translation_service_raises_for_missing_product(db_session):

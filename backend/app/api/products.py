@@ -17,7 +17,7 @@ from app.schemas.product import (
 )
 from app.services.product_import_service import ProductImportService
 from app.services.product_service import ProductService
-from app.services.translation_service import TranslationService
+from app.services.translation_service import TranslationError, TranslationService
 
 router = APIRouter(prefix="/api/products", tags=["products"])
 
@@ -87,3 +87,7 @@ def translate_product(
         )
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except TranslationError as exc:
+        raise HTTPException(status_code=400, detail="번역 실패") from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc

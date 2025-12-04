@@ -12,6 +12,10 @@ from app.config import settings
 from app.models.domain import Product, ProductLocalizedInfo, ProductOption
 
 
+class TranslationError(RuntimeError):
+    """Raised when translation cannot be performed."""
+
+
 class TranslationService:
     def __init__(self, session: Session) -> None:
         self.session = session
@@ -30,9 +34,9 @@ class TranslationService:
             if self.translation_api_key:
                 client_kwargs["api_key"] = self.translation_api_key
 
-            # In test/dev environments where credentials are not provided, keep
-            # translations deterministic by falling back to the stub behavior
-            # instead of raising DefaultCredentialsError.
+            # In test/dev environments where credentials are not provided, allow
+            # the caller to surface translation failures deterministically
+            # instead of raising DefaultCredentialsError here.
             try:
                 self._client = translate.Client(**client_kwargs)
             except DefaultCredentialsError:
@@ -50,10 +54,13 @@ class TranslationService:
 
         client = self._get_gcloud_client()
         if client is None:
-            return f"{text} ({target_language})"
+            raise TranslationError("Translation client not available")
 
-        response = client.translate(text, target_language=target_language)
-        return response["translatedText"]
+        try:
+            response = client.translate(text, target_language=target_language)
+            return response["translatedText"]
+        except Exception as exc:  # pragma: no cover - passthrough for clarity
+            raise TranslationError("Translation request failed") from exc
 
     def _translate_list(
         self, texts: List[str], target_language: str, provider: str | None = None
