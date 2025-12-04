@@ -50,21 +50,42 @@ class TaobaoScraper:
 
         try:
             data = await asyncio.to_thread(self.client.get_item_detail, num_iid)
-            item = data.get("item_get_response", {}).get("item", {})
+            item = data.get("data") or data.get("item_get_response", {}).get("item", {})
             title = item.get("title", "")
-            price = float(item.get("price", 0))
-            pic_url = item.get("pic_url", "")
-            image_urls = [pic_url] if pic_url else []
-            detail_image_urls: List[str] = []
+            price = self._safe_float(item.get("promotion_price") or item.get("price"), 0)
+
+            image_urls = self._normalize_image_list(item.get("pic_urls"))
+            if not image_urls:
+                pic_url = item.get("pic_url")
+                if pic_url:
+                    image_urls.append(str(pic_url))
+            if not image_urls:
+                image_urls.extend(self._extract_sku_images(item.get("sku_list") or []))
+
+            detail_image_urls = self._extract_detail_images(item)
         except Exception as exc:
             raise ScrapeFailed("상품 정보를 불러오는 중 오류가 발생했습니다.") from exc
 
         options: List[ScrapedOption] = []
-        for sku in item.get("skus", {}).get("sku", []) or []:
+        skus = item.get("sku_list") or item.get("skus", {}).get("sku", []) or []
+        for sku in skus:
+            sku_price = self._safe_float(
+                sku.get("promotion_price") or sku.get("price"), None
+            )
             option = ScrapedOption(
-                option_key=str(sku.get("properties", "default")),
-                raw_name=sku.get("sku_name", sku.get("properties_name", "Default")),
-                raw_price_diff=float(sku.get("price", 0)) - price if price else None,
+                option_key=str(
+                    sku.get("sku_id")
+                    or sku.get("prop_path")
+                    or sku.get("properties", "default")
+                ),
+                raw_name=(
+                    sku.get("sku_name")
+                    or sku.get("prop_text")
+                    or sku.get("properties_name")
+                    or sku.get("properties")
+                    or "Default"
+                ),
+                raw_price_diff=sku_price - price if price and sku_price is not None else None,
             )
             options.append(option)
 
@@ -81,6 +102,37 @@ class TaobaoScraper:
             detail_image_urls=detail_image_urls,
             options=options,
         )
+
+    def _normalize_image_list(self, images: Optional[List[str] | str]) -> List[str]:
+        if not images:
+            return []
+        if isinstance(images, str):
+            return [img.strip() for img in images.split(",") if img.strip()]
+        return [str(img) for img in images if img]
+
+    def _extract_sku_images(self, skus: List[dict]) -> List[str]:
+        images: List[str] = []
+        for sku in skus:
+            pic_url = sku.get("pic_url") or sku.get("sku_pic_url")
+            if pic_url:
+                images.append(str(pic_url))
+        return images
+
+    def _extract_detail_images(self, item: dict) -> List[str]:
+        for key in ("detail_image_urls", "detail_imgs", "desc_img", "desc_imgs"):
+            images = self._normalize_image_list(item.get(key))
+            if images:
+                return images
+        description = item.get("description")
+        if isinstance(description, list):
+            return [str(img) for img in description if isinstance(img, str)]
+        return []
+
+    def _safe_float(self, value: object, default: float | None) -> float | None:
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return default
 
     def _extract_num_iid(self, url: str) -> Optional[str]:
         """Extract ``num_iid`` from common Taobao item URLs or direct IDs."""
