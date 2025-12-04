@@ -16,6 +16,10 @@ class TranslationError(RuntimeError):
     """Raised when translation cannot be performed."""
 
 
+class UnsupportedTranslationProviderError(ValueError):
+    """Raised when a translation provider is not supported."""
+
+
 class TranslationService:
     def __init__(self, session: Session) -> None:
         self.session = session
@@ -23,6 +27,7 @@ class TranslationService:
         self.translation_api_key = settings.translation_api_key
         self.google_credentials = settings.google_application_credentials
         self._client: translate.Client | None = None
+        self.supported_providers: tuple[str, ...] = ("gcloud",)
 
     def _get_gcloud_client(self) -> translate.Client:
         if not self._client:
@@ -49,8 +54,11 @@ class TranslationService:
         if not text:
             return ""
         provider = (provider or self.provider).lower()
-        if provider != "gcloud":
-            raise ValueError(f"Unsupported translation provider: {provider}")
+        if provider not in self.supported_providers:
+            supported = ", ".join(self.supported_providers)
+            raise UnsupportedTranslationProviderError(
+                f"Unsupported translation provider: {provider}. Supported providers: {supported}"
+            )
 
         client = self._get_gcloud_client()
         if client is None:
