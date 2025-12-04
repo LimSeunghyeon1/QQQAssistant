@@ -5,7 +5,7 @@ from pathlib import Path
 
 from typing import Callable
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
@@ -66,6 +66,17 @@ def _export_products(
 def export_channel(
     channel: str, payload: SmartStoreExportRequest, session: Session = Depends(get_session)
 ):
+    """Backward-compatible channel-based export endpoint."""
+    return export(channel=channel, payload=payload, session=session)
+
+
+@router.post("")
+def export(
+    payload: SmartStoreExportRequest,
+    channel: str = Query(..., description="Sales channel to export products for"),
+    session: Session = Depends(get_session),
+):
+    """Dispatch export requests to the appropriate channel exporter."""
     try:
         return _export_products(channel, payload, session)
     except ValueError as exc:
