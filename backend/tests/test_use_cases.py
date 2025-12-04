@@ -23,7 +23,11 @@ from app.main import app
 from app.services import PricingInputs, PricingService
 from app.services.exporter_smartstore import SmartStoreExporter
 from app.services.taobao_scraper import ScrapedOption, ScrapedProduct, TaobaoScraper
-from app.services.translation_service import TranslationError, TranslationService
+from app.services.translation_service import (
+    TranslationError,
+    TranslationService,
+    UnsupportedTranslationProviderError,
+)
 
 
 # Shared in-memory database for test cases
@@ -245,6 +249,48 @@ def test_translation_endpoint_returns_failure(client: TestClient):
     assert product.get("localizations") == []
 
 
+def test_translation_endpoint_with_supported_provider(client: TestClient, monkeypatch):
+    product_id, _ = create_sample_product(client, index=5)
+
+    class FakeClient:
+        def translate(self, text: str, target_language: str):
+            return {"translatedText": f"{text}-{target_language}"}
+
+    monkeypatch.setattr(
+        TranslationService, "_get_gcloud_client", lambda self: FakeClient()
+    )
+
+    resp = client.post(
+        f"/api/products/{product_id}/translate",
+        json={"target_locale": "ko-KR", "provider": "gcloud"},
+    )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["title"] == "Dummy Taobao Product-ko"
+
+    products_resp = client.get("/api/products")
+    product = next(p for p in products_resp.json() if p["id"] == product_id)
+    assert product["localizations"]
+    assert product["localizations"][0]["title"] == "Dummy Taobao Product-ko"
+    assert product["options"][0]["localized_name"] == "기본-ko"
+
+
+def test_translation_endpoint_rejects_unsupported_provider(client: TestClient):
+    product_id, _ = create_sample_product(client, index=6)
+
+    resp = client.post(
+        f"/api/products/{product_id}/translate",
+        json={"target_locale": "ko-KR", "provider": "papago"},
+    )
+    assert resp.status_code == 422, resp.text
+    assert resp.json()["detail"] == "지원하지 않는 번역 프로바이더"
+
+    products_resp = client.get("/api/products")
+    product = next(p for p in products_resp.json() if p["id"] == product_id)
+    assert product.get("localizations") == []
+    assert product["options"][0].get("localized_name") is None
+
+
 def test_purchase_order_creation_updates_orders(client: TestClient):
     product_id, option_id = create_sample_product(client, index=3)
     order = create_order(
@@ -311,6 +357,32 @@ def test_translation_service_raises_for_missing_product(db_session):
     service = TranslationService(db_session)
     with pytest.raises(LookupError):
         service.translate_product(9999)
+
+
+def test_translation_service_rejects_unsupported_provider(db_session):
+    product = Product(
+        source_url="https://example.com/item/unsupported",
+        source_site="TAOBAO",
+        raw_title="원본 타이틀",
+        raw_description="원본 설명",
+        raw_price=99.0,
+        raw_currency="CNY",
+    )
+    option = ProductOption(
+        product=product,
+        option_key="color:blue",
+        raw_name="파랑",
+        raw_price_diff=0,
+    )
+    db_session.add_all([product, option])
+    db_session.commit()
+
+    service = TranslationService(db_session)
+
+    with pytest.raises(UnsupportedTranslationProviderError) as excinfo:
+        service.translate_product(product.id, target_locale="ko-KR", provider="papago")
+
+    assert "Supported providers: gcloud" in str(excinfo.value)
 
 
 def test_taobao_scraper_returns_default_option():

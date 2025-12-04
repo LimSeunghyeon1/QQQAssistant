@@ -15,7 +15,9 @@ async function translateProduct(productId: number) {
   });
   if (!res.ok) {
     const detail = await res.json().catch(() => ({}));
-    throw new Error(detail?.detail ?? "번역 실패");
+    const fallback =
+      res.status === 422 ? "지원하지 않는 번역 프로바이더" : "번역 실패";
+    throw new Error(detail?.detail ?? fallback);
   }
   return res.json();
 }
