@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from fastapi import FastAPI
 
+from app.api import after_sales
 from app.api import exports as exports_api
 from app.api import orders, products, shipments
 from app.api import purchase_orders
@@ -29,6 +30,7 @@ def create_app() -> FastAPI:
         products.router,
         orders.router,
         shipments.router,
+        after_sales.router,
         exports_api.router,
         purchase_orders.router,
     ):
