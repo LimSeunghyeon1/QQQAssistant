@@ -90,3 +90,14 @@ Key variables:
 | `RETURN_POLICY_IMAGE_URL` | Optional absolute/public URL appended to exported descriptions as an `<img>` block (e.g., return/AS policy banner). If unset, no image is added. | `https://example.com/return-policy.png` |
 
 FastAPI automatically loads these via `pydantic-settings`; ensure the `.env` file sits at the repository root (same level as `backend/`). SmartStore CSV exports are saved into `SALES_CHANNEL_EXPORT_DIR` in addition to being streamed in the response.
+
+### Frontend channel support toggle
+
+The React/Vite frontend reads `VITE_*` variables from the same `.env` file. To control which sales channels are treated as “지원됨” in the UI dropdowns and status messages, set `VITE_SUPPORTED_CHANNEL_LABELS` to a comma-separated list of channel labels (case-insensitive) that match the visible names in the selector. For example:
+
+```bash
+# Enables SmartStore and marks Coupang as supported while leaving others as "지원 예정"
+VITE_SUPPORTED_CHANNEL_LABELS=SmartStore,Coupang
+```
+
+If you omit this variable, only SmartStore is marked as supported by default.
