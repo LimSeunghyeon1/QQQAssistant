@@ -281,6 +281,7 @@ def test_translation_service_translates_title_and_options(db_session):
         source_url="https://example.com/item/translate",
         source_site="TAOBAO",
         raw_title="원본 타이틀",
+        raw_description="원본 설명",
         raw_price=120.0,
         raw_currency="CNY",
     )
@@ -298,6 +299,7 @@ def test_translation_service_translates_title_and_options(db_session):
 
     assert localized.locale == "ko-KR"
     assert localized.title.endswith("(ko)")
+    assert localized.description.endswith("(ko)")
 
     updated_option = db_session.get(ProductOption, option.id)
     assert updated_option.localized_name.endswith("(ko)")
@@ -342,6 +344,91 @@ def test_smartstore_export_returns_csv(client: TestClient):
     content = export_resp.text
     assert "상품명,판매가,재고수량" in content.splitlines()[0]
     assert "샘플 상품" in content
+
+
+def test_smartstore_export_respects_requested_locale(client: TestClient):
+    product_id, _ = create_sample_product(client, index=5)
+
+    ko_localization = {
+        "locale": "ko-KR",
+        "title": "한국어 상품",
+        "description": "한국어 설명",
+        "option_display_name_format": "{color}/{size}",
+    }
+    en_localization = {
+        "locale": "en-US",
+        "title": "English Product",
+        "description": "English description",
+        "option_display_name_format": "{color}/{size}",
+    }
+    assert (
+        client.put(
+            f"/api/products/{product_id}/localization", json=ko_localization
+        ).status_code
+        == 200
+    )
+    assert (
+        client.put(
+            f"/api/products/{product_id}/localization", json=en_localization
+        ).status_code
+        == 200
+    )
+
+    ko_export = client.post(
+        "/api/exports/channel/smartstore",
+        json={
+            "product_ids": [product_id],
+            "template_type": "default",
+            "locale": "ko-KR",
+        },
+    )
+    en_export = client.post(
+        "/api/exports/channel/smartstore",
+        json={
+            "product_ids": [product_id],
+            "template_type": "default",
+            "locale": "en-US",
+        },
+    )
+
+    ko_rows = list(csv.reader(io.StringIO(ko_export.text)))
+    en_rows = list(csv.reader(io.StringIO(en_export.text)))
+
+    assert ko_rows[1][0] == "한국어 상품"
+    assert ko_rows[1][5] == "한국어 설명"
+    assert en_rows[1][0] == "English Product"
+    assert en_rows[1][5] == "English description"
+
+
+def test_smartstore_export_falls_back_to_available_localization(client: TestClient):
+    product_id, _ = create_sample_product(client, index=6)
+
+    ko_localization = {
+        "locale": "ko-KR",
+        "title": "기본 상품",
+        "description": "한국어 기본 설명",
+        "option_display_name_format": "{color}/{size}",
+    }
+    assert (
+        client.put(
+            f"/api/products/{product_id}/localization", json=ko_localization
+        ).status_code
+        == 200
+    )
+
+    export_resp = client.post(
+        "/api/exports/channel/smartstore",
+        json={
+            "product_ids": [product_id],
+            "template_type": "default",
+            "locale": "en-US",
+        },
+    )
+
+    rows = list(csv.reader(io.StringIO(export_resp.text)))
+
+    assert rows[1][0] == "기본 상품"
+    assert rows[1][5] == "한국어 기본 설명"
 
 
 def test_pricing_service_combinations():

@@ -12,8 +12,9 @@ from app.config import settings
 
 
 class SmartStoreExporter:
-    def __init__(self, template_config: dict | None = None) -> None:
+    def __init__(self, template_config: dict | None = None, locale: str | None = None) -> None:
         self.template_config = template_config or {}
+        self.locale = locale
         self.pricing = PricingService()
 
     def export_products(self, session: Session, product_ids: List[int]) -> io.StringIO:
@@ -37,17 +38,22 @@ class SmartStoreExporter:
         ]
         writer.writerow(header)
 
+        target_locale = (
+            self.locale or self.template_config.get("locale") or "ko-KR"
+        )
+
         for product in products:
-            localized: ProductLocalizedInfo | None = (
-                session.query(ProductLocalizedInfo)
-                .filter(
-                    ProductLocalizedInfo.product_id == product.id,
-                    ProductLocalizedInfo.locale == "ko-KR",
-                )
-                .first()
+            localizations: List[ProductLocalizedInfo] = list(product.localizations)
+            localized = next(
+                (loc for loc in localizations if loc.locale == target_locale), None
             )
-            ko_title = localized.title if localized else product.raw_title
-            description = localized.description if localized else ""
+
+            fallback_localized = localized or (localizations[0] if localizations else None)
+
+            ko_title = self._pick_title(product, localized, fallback_localized)
+            description = self._pick_description(
+                product, localized, fallback_localized, localizations
+            )
             policy_image = self.template_config.get("return_policy_image_url")
             if policy_image:
                 policy_block = f'<div><img src="{policy_image}" alt="return-policy" /></div>'
@@ -94,6 +100,34 @@ class SmartStoreExporter:
 
         output.seek(0)
         return output
+
+    def _pick_title(
+        self,
+        product: Product,
+        localized: ProductLocalizedInfo | None,
+        fallback_localized: ProductLocalizedInfo | None,
+    ) -> str:
+        if localized and localized.title:
+            return localized.title
+        if fallback_localized and fallback_localized.title:
+            return fallback_localized.title
+        return product.raw_title
+
+    def _pick_description(
+        self,
+        product: Product,
+        localized: ProductLocalizedInfo | None,
+        fallback_localized: ProductLocalizedInfo | None,
+        all_localizations: List[ProductLocalizedInfo],
+    ) -> str:
+        if localized and localized.description:
+            return localized.description
+        if fallback_localized and fallback_localized.description:
+            return fallback_localized.description
+        for loc in all_localizations:
+            if loc.description:
+                return loc.description
+        return product.raw_description or ""
 
     def _append_return_policy(self, description: str) -> str:
         image_url = self.template_config.get("return_policy_image_url") or settings.return_policy_image_url
