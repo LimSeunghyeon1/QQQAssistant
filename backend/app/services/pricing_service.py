@@ -32,4 +32,4 @@ class PricingService:
         with_margin = landed_cost * (1 + inputs.margin_rate)
         if inputs.include_vat:
             with_margin *= 1 + inputs.vat_rate
-        return round(with_margin)
+        return round(with_margin / 10) * 10
