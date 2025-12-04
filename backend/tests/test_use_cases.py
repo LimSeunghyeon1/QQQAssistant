@@ -400,6 +400,28 @@ def test_smartstore_export_respects_requested_locale(client: TestClient):
     assert en_rows[1][5] == "English description"
 
 
+def test_export_channel_accepts_supported_channel(client: TestClient):
+    product_id, _ = create_sample_product(client, index=6)
+
+    resp = client.post(
+        "/api/exports/channel/SMARTSTORE",
+        json={"product_ids": [product_id], "template_type": "default"},
+    )
+
+    assert resp.status_code == 200, resp.text
+    assert resp.headers["content-type"].startswith("text/csv")
+
+
+def test_export_channel_rejects_unsupported_channel(client: TestClient):
+    resp = client.post(
+        "/api/exports/channel/unknown",
+        json={"product_ids": [1], "template_type": "default"},
+    )
+
+    assert resp.status_code == 400
+    assert resp.json()["detail"] == "지원하지 않는 채널"
+
+
 def test_smartstore_export_falls_back_to_available_localization(client: TestClient):
     product_id, _ = create_sample_product(client, index=6)
 
