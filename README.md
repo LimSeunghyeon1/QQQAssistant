@@ -87,5 +87,6 @@ Key variables:
 | `TAOBAO_API_URL` | Taobao Open Platform API host. | `https://gw.api.taobao.com/router/rest` |
 | `SALES_CHANNEL_EXPORT_DIR` | Directory where generated upload/export files will be written. | `./exports` |
 | `EXCHANGE_RATE` / `DEFAULT_MARGIN` / `VAT_RATE` / `DEFAULT_DELIVERY` | Optional pricing defaults when a product does not define overrides. Leave unset to use the baked-in defaults from `app.config.Settings`. | `185.2` / `15` / `10` / `3500` |
+| `RETURN_POLICY_IMAGE_URL` | Optional absolute/public URL appended to exported descriptions as an `<img>` block (e.g., return/AS policy banner). If unset, no image is added. | `https://example.com/return-policy.png` |
 
 FastAPI automatically loads these via `pydantic-settings`; ensure the `.env` file sits at the repository root (same level as `backend/`). SmartStore CSV exports are saved into `SALES_CHANNEL_EXPORT_DIR` in addition to being streamed in the response.
