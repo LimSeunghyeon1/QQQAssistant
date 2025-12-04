@@ -3,7 +3,6 @@ from __future__ import annotations
 from sqlalchemy.orm import Session
 
 from app.models.domain import Product, ProductOption
-from app.services.image_cleanup import ImageCleanupService
 from app.services.taobao_scraper import (
     ScrapeFailed,
     ScrapedOption,
@@ -16,12 +15,9 @@ class ProductImportService:
     def __init__(
         self,
         session: Session,
-        *,
-        image_cleanup_service: ImageCleanupService | None = None,
     ) -> None:
         self.session = session
         self.scrapers = {"TAOBAO": TaobaoScraper()}
-        self.image_cleanup_service = image_cleanup_service or ImageCleanupService()
 
     async def import_product(self, source_url: str, source_site: str) -> Product:
         scraper = self.scrapers.get(source_site.upper())
@@ -46,13 +42,6 @@ class ProductImportService:
                 ScrapedOption(option_key="default", raw_name="Default", raw_price_diff=0.0)
             ]
 
-        clean_image_urls = await self.image_cleanup_service.cleanup_images(
-            scraped.image_urls
-        )
-        clean_detail_image_urls = await self.image_cleanup_service.cleanup_images(
-            scraped.detail_image_urls
-        )
-
         product = Product(
             source_url=scraped.source_url,
             source_site=scraped.source_site,
@@ -61,8 +50,6 @@ class ProductImportService:
             raw_currency=scraped.currency,
             image_urls=scraped.image_urls,
             detail_image_urls=scraped.detail_image_urls,
-            clean_image_urls=clean_image_urls,
-            clean_detail_image_urls=clean_detail_image_urls,
         )
         self.session.add(product)
         self.session.flush()

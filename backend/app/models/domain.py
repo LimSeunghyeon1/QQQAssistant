@@ -34,8 +34,6 @@ class Product(Base):
     shipping_fee: Mapped[float | None] = mapped_column(Numeric(12, 2), nullable=True)
     image_urls: Mapped[list[str]] = mapped_column(JSON, default=list)
     detail_image_urls: Mapped[list[str]] = mapped_column(JSON, default=list)
-    clean_image_urls: Mapped[list[str]] = mapped_column(JSON, default=list)
-    clean_detail_image_urls: Mapped[list[str]] = mapped_column(JSON, default=list)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow, onupdate=datetime.utcnow

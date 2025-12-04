@@ -64,8 +64,6 @@ def apply_schema_upgrades() -> None:
         add_product_column("raw_description", "TEXT")
         add_product_column("thumbnail_image_urls", "JSON DEFAULT '[]'")
         add_product_column("detail_image_urls", "JSON DEFAULT '[]'")
-        add_product_column("clean_image_urls", "JSON DEFAULT '[]'")
-        add_product_column("clean_detail_image_urls", "JSON DEFAULT '[]'")
         add_product_column("exchange_rate", "NUMERIC(12, 4)")
         add_product_column("margin_rate", "NUMERIC(6, 2)")
         add_product_column("vat_rate", "NUMERIC(6, 2)")

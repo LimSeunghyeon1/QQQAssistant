@@ -124,8 +124,6 @@ class SmartStoreExporter:
         return description
 
     def _primary_image(self, product: Product) -> str:
-        if product.clean_image_urls:
-            return product.clean_image_urls[0]
         if product.image_urls:
             return product.image_urls[0]
         return ""

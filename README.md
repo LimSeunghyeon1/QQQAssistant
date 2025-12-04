@@ -36,7 +36,7 @@ The backend will be available on port `8000` with a `/health` check, and the fro
 ### Basic workflow (Taobao → SmartStore)
 
 1. Start the stack (Option A or B) and open `http://localhost:5173`.
-2. Paste a Taobao product URL into the landing page to scrape product/options and cleaned image variants.
+2. Paste a Taobao product URL into the landing page to scrape product/options and image URLs (image cleanup is no longer performed).
 3. Translate and localize content via the UI, which calls `/api/products/{product_id}/translate` and stores localized names/descriptions.
 4. Tweak pricing/margins and export selected products through `/api/exports/channel/smartstore`, which streams a CSV and also writes it to `SALES_CHANNEL_EXPORT_DIR`.
 5. Upload orders, manage shipments, and batch outstanding orders into supplier purchase orders from the same UI.
