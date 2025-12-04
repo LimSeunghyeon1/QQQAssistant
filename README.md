@@ -1,42 +1,49 @@
 # QQQAssistant
 
+## Overview
+
+QQQAssistant is a purchase-agency helper for Taobao/Shopee-style product sourcing. The FastAPI backend (`backend/app/main.py`) scrapes products, translates and localizes content, aggregates purchase orders, and exports SmartStore-ready CSVs. The React 18 + Vite frontend (`frontend/`) talks to the same API for day-to-day flows like product imports, exports, order uploads, shipment tracking, and purchase-order batching. For deeper details on domain models and services, see [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+
 ## Running the stack (backend API + frontend)
 
-The FastAPI application lives in `backend/app/main.py` and exposes REST endpoints for products, orders, exports, shipments, and purchase orders. The React/Vite frontend in `frontend/` talks to the same API.
+You can run everything locally with the helper script or via Docker Compose.
 
-### Prerequisites before starting the dev servers
+### Prerequisites
 
-1) Install system requirements (Python 3.10+, Node.js/npm). `start.sh` will create a virtualenv and install Python/Node dependencies, but the runtimes themselves must exist locally.
-2) Create an environment file by copying the example: `cp .env.example .env`.
-3) Fill in Taobao credentials (app key/secret and a valid **session key**) in `.env` so product lookups work. Session keys are issued from the Taobao Open Platform after authorizing your app; paste the active value into `TAOBAO_SESSION_KEY`.
+1. Install Python 3.10+ and Node.js/npm on your machine. The helper script will create a virtualenv and install dependencies, but the runtimes themselves must be available.
+2. Create and populate a `.env` file: `cp .env.example .env`, then fill in the Taobao app key/secret and **active session key** issued from the Taobao Open Platform so product lookups succeed.
 
-### Starting the stack
+### Option A: Local dev servers
 
-Use the helper script to spin up both services with one command (virtualenv + editable backend install + Vite dev server):
+Use `start.sh` from the repository root to bootstrap both services (editable backend install + Vite dev server):
 
 ```bash
 ./start.sh
 ```
 
-### Quick start script
+This starts the backend on `http://localhost:8000` and the frontend on `http://localhost:5173` (which proxies API calls to the backend). Press `Ctrl+C` in the terminal to stop both processes.
 
-Use `start.sh` to boot the FastAPI app and hit the main flows with real HTTP calls (no tests involved). From the repository root:
+### Option B: Docker Compose
 
-Once both processes are running, open the frontend at `http://localhost:5173`. It proxies API calls to the backend at `http://localhost:8000`.
+If you prefer containers, bring up the stack with the provided compose file:
 
-Press `Ctrl+C` to stop both processes.
+```bash
+docker compose up --build
+```
+
+The backend will be available on port `8000` with a `/health` check, and the frontend dev server on port `5173` configured to talk to the backend service name. Compose mounts your local `backend/` and `frontend/` code for live reload while developing.
 
 ### Basic workflow (Taobao → SmartStore)
 
-1) Run `./start.sh` and open `http://localhost:5173` in your browser.
-2) Paste a Taobao product URL into the input field on the landing page.
-3) Trigger product retrieval to fetch details from Taobao using the credentials in `.env`.
-4) Review/edit the returned product information.
-5) Download the SmartStore-ready CSV file (exported via `/api/exports/channel/smartstore` and saved under `SALES_CHANNEL_EXPORT_DIR`).
+1. Start the stack (Option A or B) and open `http://localhost:5173`.
+2. Paste a Taobao product URL into the landing page to scrape product/options and cleaned image variants.
+3. Translate and localize content via the UI, which calls `/api/products/{product_id}/translate` and stores localized names/descriptions.
+4. Tweak pricing/margins and export selected products through `/api/exports/channel/smartstore`, which streams a CSV and also writes it to `SALES_CHANNEL_EXPORT_DIR`.
+5. Upload orders, manage shipments, and batch outstanding orders into supplier purchase orders from the same UI.
 
 ## Running the backend test suite
 
-The repository’s backend unit and integration tests live under `backend/tests`. To execute them end-to-end:
+Backend unit and integration tests live under `backend/tests`. To execute them end-to-end:
 
 ```bash
 cd backend
@@ -65,28 +72,11 @@ Key variables:
 | --- | --- | --- |
 | `DATABASE_URL` | SQLAlchemy connection string. Defaults to a local SQLite file for quick starts; point this to Postgres/MySQL in production. | `sqlite:///./qqq_assistant.db` or `postgresql+psycopg://user:pass@localhost:5432/qqq_assistant` |
 | `TRANSLATION_API_KEY` | API key/token for the translation provider used to prefill localized product text. | `sk-xxxx` |
-| `TRANSLATION_PROVIDER` | Translation backend identifier (for example `gcloud`). | `gcloud` |
+| `TRANSLATION_PROVIDER` | Translation backend identifier (for example `gcloud`). Defaults to Google Cloud with a deterministic stub fallback when credentials are absent. | `gcloud` |
 | `GOOGLE_APPLICATION_CREDENTIALS` | Path to the Google Cloud service-account JSON file when using the Google translation API. | `/path/to/service-account.json` |
 | `TAOBAO_APP_KEY` / `TAOBAO_APP_SECRET` | Application credentials from the Taobao Open Platform. | `your-app-key` / `your-app-secret` |
 | `TAOBAO_SESSION_KEY` | Active Taobao session key (grant token). Required for fetching products by URL. | `your-session-key` |
 | `TAOBAO_API_URL` | Taobao Open Platform API host. | `https://gw.api.taobao.com/router/rest` |
 | `SALES_CHANNEL_EXPORT_DIR` | Directory where generated upload/export files will be written. | `./exports` |
 
-FastAPI automatically loads these via `pydantic-settings`; ensure the `.env` file sits at the repository root (same level as `backend/`).
-
-SmartStore CSV exports written by `/api/exports/channel/smartstore` are saved into `SALES_CHANNEL_EXPORT_DIR` in addition to being streamed in the response.
-
-### Translation provider setup
-
-The `/api/products/{product_id}/translate` endpoint now uses the Google Cloud Translation API when `TRANSLATION_PROVIDER=gcloud` (default). Provide either a `TRANSLATION_API_KEY` or a service-account JSON file pointed to by `GOOGLE_APPLICATION_CREDENTIALS` so the backend can authenticate when issuing translation requests.
-
-
-## Work log
-
-- `pip install -e backend` 실패: 외부 네트워크 프록시로 인해 `setuptools` 다운로드가 차단되어 백엔드 의존성 설치가 완료되지 않음.
-- `pytest backend/tests` 실패: 위 의존성 설치 실패로 FastAPI 등을 찾지 못해 테스트 실행 불가.
-
-## TODO
-
-- 오프라인/사설 미러 등 네트워크 제약을 우회하거나 필요한 패키지를 수동으로 다운로드해 `pip install -e backend`가 성공하도록 처리.
-- 의존성 설치가 완료된 환경에서 `pytest backend/tests`를 재실행해 유스케이스 테스트가 실제로 통과하는지 검증.
+FastAPI automatically loads these via `pydantic-settings`; ensure the `.env` file sits at the repository root (same level as `backend/`). SmartStore CSV exports are saved into `SALES_CHANNEL_EXPORT_DIR` in addition to being streamed in the response.
