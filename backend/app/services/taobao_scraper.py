@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import List, Optional
 from urllib.parse import parse_qs, urlparse
 
@@ -24,8 +24,8 @@ class ScrapedProduct:
     price: float
     currency: str
     image_urls: List[str]
-    detail_image_urls: List[str]
-    options: List[ScrapedOption]
+    detail_image_urls: List[str] = field(default_factory=list)
+    options: List[ScrapedOption] = field(default_factory=list)
 
 
 class TaobaoScraper:

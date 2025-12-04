@@ -45,6 +45,7 @@ def stub_taobao_scraper(monkeypatch):
             price=99.0,
             currency="CNY",
             image_urls=["https://example.com/img.jpg"],
+            detail_image_urls=["https://example.com/detail1.jpg"],
             options=[ScrapedOption(option_key="default", raw_name="기본", raw_price_diff=0)],
         )
 

@@ -58,7 +58,9 @@ def apply_schema_upgrades() -> None:
 
         def add_product_column(column_name: str, ddl: str) -> None:
             if column_name not in product_columns:
-                connection.execute(text(f"ALTER TABLE products ADD COLUMN {ddl}"))
+                connection.execute(
+                    text(f"ALTER TABLE products ADD COLUMN {column_name} {ddl}")
+                )
 
         add_product_column("raw_description", "TEXT")
         add_product_column("thumbnail_image_urls", "JSON DEFAULT '[]'")
