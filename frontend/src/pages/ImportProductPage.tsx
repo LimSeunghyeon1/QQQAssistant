@@ -5,6 +5,7 @@ export default function ImportProductPage() {
     message: string;
     tone: "idle" | "info" | "success" | "error";
   }>({ message: "", tone: "idle" });
+  const [sourceSite, setSourceSite] = useState("TAOBAO");
 
   const parseNumber = (value: FormDataEntryValue | null) => {
     if (value === null || value === "") return undefined;
@@ -14,7 +15,8 @@ export default function ImportProductPage() {
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    const formData = new FormData(e.currentTarget);
+    const form = e.currentTarget;
+    const formData = new FormData(form);
     const payload = Object.fromEntries(formData.entries());
     const overrides = {
       exchange_rate: parseNumber(formData.get("exchange_rate")),
@@ -38,7 +40,7 @@ export default function ImportProductPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         source_url: payload.source_url,
-        source_site: payload.source_site || "TAOBAO",
+        source_site: payload.source_site || sourceSite,
       }),
     });
     if (res.ok) {
@@ -71,7 +73,8 @@ export default function ImportProductPage() {
         message: "Imported and queued for localization",
         tone: "success",
       });
-      e.currentTarget.reset();
+      setSourceSite("TAOBAO");
+      form.reset();
     } else {
       const detail = await res.json().catch(() => ({}));
       setStatus({
@@ -96,7 +99,15 @@ export default function ImportProductPage() {
           <input name="source_url" className="mt-1 w-full border rounded px-3 py-2" required />
         </label>
         <label className="block text-sm">Source Site
-          <input name="source_site" className="mt-1 w-full border rounded px-3 py-2" placeholder="TAOBAO" defaultValue="TAOBAO"/>
+          <select
+            name="source_site"
+            className="mt-1 w-full border rounded px-3 py-2"
+            value={sourceSite}
+            onChange={(e) => setSourceSite(e.target.value)}
+          >
+            <option value="TAOBAO">Taobao/Tmall</option>
+            <option value="1688">1688</option>
+          </select>
         </label>
         <div className="grid grid-cols-2 gap-3">
           <label className="block text-sm">환율 (선택)

@@ -35,7 +35,15 @@ class ScrapeFailed(Exception):
 class TaobaoScraper:
     """Scraper that delegates to the official Taobao TOP API client."""
 
-    def __init__(self, client: Optional[TaobaoClient] = None) -> None:
+    def __init__(
+        self,
+        client: Optional[TaobaoClient] = None,
+        *,
+        source_site: str = "TAOBAO",
+        item_source_market: str | None = None,
+    ) -> None:
+        self.source_site = source_site.upper()
+        self.item_source_market = item_source_market
         try:
             self.client = client or TaobaoClient()
         except Exception:
@@ -49,7 +57,11 @@ class TaobaoScraper:
             raise ScrapeFailed("Taobao 클라이언트를 초기화하지 못했습니다.")
 
         try:
-            data = await asyncio.to_thread(self.client.get_item_detail, num_iid)
+            data = await asyncio.to_thread(
+                self.client.get_item_detail,
+                num_iid,
+                item_source_market=self.item_source_market,
+            )
             item = data.get("data") or data.get("item_get_response", {}).get("item", {})
             title = item.get("title", "")
             price = self._safe_float(item.get("promotion_price") or item.get("price"), 0)
@@ -94,7 +106,7 @@ class TaobaoScraper:
 
         return ScrapedProduct(
             source_url=f"https://item.taobao.com/item.htm?id={num_iid}",
-            source_site="TAOBAO",
+            source_site=self.source_site,
             title=title or "Taobao Item",
             price=price,
             currency="CNY",

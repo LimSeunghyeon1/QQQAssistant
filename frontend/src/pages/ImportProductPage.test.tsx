@@ -13,9 +13,6 @@ describe("ImportProductPage", () => {
     fireEvent.change(screen.getByLabelText(/Source URL/i), {
       target: { value: "https://example.com/item/1" },
     });
-    fireEvent.change(screen.getByLabelText(/Source Site/i), {
-      target: { value: "TAOBAO" },
-    });
   };
 
   it("shows a success status when the import succeeds", async () => {
@@ -46,9 +43,25 @@ describe("ImportProductPage", () => {
     fireEvent.click(screen.getByText(/Submit/i));
 
     await waitFor(() => {
-      expect(
-        screen.getByText(/URL을 확인하거나 잠시 후 다시 시도/i)
-      ).toBeInTheDocument();
+      expect(screen.getByText(/상품 정보를 불러오지 못했습니다\./i)).toBeInTheDocument();
     });
+  });
+
+  it("posts the selected source site", async () => {
+    const fetchSpy = vi.spyOn(global, "fetch").mockResolvedValue({
+      ok: true,
+      json: async () => ({ id: 1, options: [] }),
+    } as Response);
+
+    render(<ImportProductPage />);
+    fillRequiredFields();
+    fireEvent.change(screen.getByLabelText(/Source Site/i), {
+      target: { value: "1688" },
+    });
+    fireEvent.click(screen.getByText(/Submit/i));
+
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalled());
+    const body = JSON.parse((fetchSpy.mock.calls[0][1] as RequestInit).body as string);
+    expect(body.source_site).toBe("1688");
   });
 });
